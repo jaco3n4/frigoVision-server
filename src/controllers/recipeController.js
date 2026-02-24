@@ -1,0 +1,383 @@
+const { vertexAI } = require("../config/vertexai");
+const { VertexAI } = require("@google-cloud/vertexai");
+const { cleanAndParseJSON } = require("../utils/json");
+const { validateText, validateArray } = require("../middleware/validate");
+const { shuffleArray } = require("../utils/helpers");
+const { DIET_MAP, ALLERGY_MAP, EQUIPMENT_NAMES } = require("../utils/constants");
+const { quickRecipeSuggestionsSchema, fullRecipeSchema } = require("../schemas");
+
+// =====================================================================
+// generateRecipesAI
+// =====================================================================
+
+async function generateRecipesAI(req, res, next) {
+  try {
+    const { ingredients, diet, mood, nutrition } = req.body;
+    validateArray(ingredients, "Ingrédients");
+
+    let nutritionPrompt = "";
+    if (nutrition) {
+      if (nutrition.kcal) nutritionPrompt += ` - Cible: ${nutrition.kcal} kcal/pers.`;
+      if (nutrition.protein) nutritionPrompt += ` - Protéines: ${nutrition.protein}g.`;
+    }
+
+    const systemPrompt = `
+      Tu es un Chef Français étoilé ANTI-GASPI.
+      Crée 2 recettes avec STRICTEMENT les ingrédients fournis + Fonds de placard (Sel, Poivre, Huile, Vinaigre, Eau).
+
+      CONTRAINTES :
+      - Régime : ${diet}
+      - Ambiance : ${mood}
+      ${nutritionPrompt}
+
+      Structure JSON attendue :
+      { "recipes": [{ "title", "time", "difficulty", "calories", "ingredients_list", "steps", "chef_tip" }] }
+    `;
+
+    const model = vertexAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+    });
+
+    const result = await model.generateContent({
+      contents: [
+        { role: "user", parts: [{ text: `Ingrédients : ${ingredients.join(", ")}` }] },
+      ],
+      generationConfig: { responseMimeType: "application/json" },
+    });
+
+    return res.json(
+      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
+    );
+  } catch (error) {
+    console.error("❌ Erreur generateRecipesAI:", error.message);
+    next(error);
+  }
+}
+
+// =====================================================================
+// getRecipeDetails
+// =====================================================================
+
+async function getRecipeDetails(req, res, next) {
+  try {
+    const { dishTitle, ingredients } = req.body;
+    validateText(dishTitle, "Titre du plat");
+    validateArray(ingredients, "Ingrédients");
+    const systemPrompt = `Recette étape par étape pour "${dishTitle}". JSON: { "steps": [], "chef_tip": "" }`;
+
+    const model = vertexAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+    });
+
+    const result = await model.generateContent({
+      contents: [
+        { role: "user", parts: [{ text: `Ingrédients dispos: ${ingredients?.join(", ")}` }] },
+      ],
+      generationConfig: { responseMimeType: "application/json" },
+    });
+
+    return res.json(
+      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
+    );
+  } catch (error) {
+    console.error("❌ Erreur getRecipeDetails:", error.message);
+    next(error);
+  }
+}
+
+// =====================================================================
+// detectIngredientEmoji
+// =====================================================================
+
+async function detectIngredientEmoji(req, res) {
+  try {
+    const { text } = req.body;
+    validateText(text, "Texte");
+    const model = vertexAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(`Donne juste l'emoji pour : ${text}`);
+    return res.json({ emoji: result.response.candidates[0].content.parts[0].text.trim() });
+  } catch (error) {
+    return res.json({ emoji: "" });
+  }
+}
+
+// =====================================================================
+// suggestRecipesQuick
+// =====================================================================
+
+async function suggestRecipesQuick(req, res, next) {
+  try {
+    const { userProfile, pantryItems, priorityIngredient } = req.body;
+    validateArray(pantryItems, "Pantry items");
+
+    let ingredientsList;
+    if (priorityIngredient) {
+      const others = (pantryItems || []).filter((i) => i.name !== priorityIngredient);
+      ingredientsList = [priorityIngredient, ...shuffleArray(others).slice(0, 11).map((i) => i.name)];
+    } else {
+      ingredientsList = shuffleArray(pantryItems || []).slice(0, 12).map((i) => i.name);
+    }
+    const topIngredients = ingredientsList.join(", ") || "Basiques";
+
+    const goal = userProfile?.context || "équilibré";
+    const dietLabel = userProfile?.diet || "";
+    const allergies = userProfile?.allergies || [];
+    const dislikes = userProfile?.dislikes || [];
+    const equipment = userProfile?.equipment || [];
+
+    const dietRule = DIET_MAP[dietLabel]
+      ? `\n- RÉGIME : ${DIET_MAP[dietLabel]}. INTERDIT de proposer des ingrédients incompatibles.`
+      : "";
+    const allergyRule = allergies.length > 0
+      ? `\n- ALLERGIES : ${allergies.map((a) => ALLERGY_MAP[a] || a).join(", ")}. AUCUN ingrédient contenant ces allergènes.`
+      : "";
+    const dislikeRule = dislikes.length > 0
+      ? `\n- DÉTESTE : ${dislikes.join(", ")}. NE JAMAIS utiliser ces ingrédients.`
+      : "";
+    const equipmentRule = equipment.length > 0
+      ? `\n- ÉQUIPEMENT DISPONIBLE : ${equipment.map((e) => EQUIPMENT_NAMES[e] || e).join(", ")}. Adapte les recettes.`
+      : "";
+    const profileSection = (dietRule || allergyRule || dislikeRule || equipmentRule)
+      ? `\n=== PROFIL UTILISATEUR (OBLIGATOIRE) ===${dietRule}${allergyRule}${dislikeRule}${equipmentRule}\n`
+      : "";
+
+    const priorityRule = priorityIngredient
+      ? `\n=== ANTI-GASPI (PRIORITAIRE) ===\nL'ingrédient "${priorityIngredient}" EXPIRE BIENTÔT. Les 2 recettes DOIVENT OBLIGATOIREMENT l'utiliser comme ingrédient principal.\n`
+      : "";
+
+    const prompt = `Tu es un Chef cuisinier.
+Ton but : Proposer 2 plats appétissants à partir de cet inventaire en vrac : ${topIngredients}
+${profileSection}${priorityRule}
+=== RÈGLES DE BON SENS (CRUCIAL) ===
+1. TRI SÉMANTIQUE : L'inventaire contient des erreurs (suppléments sportifs, objets, produits non-comestibles). IGNORE-LES TOUS.
+2. COHÉRENCE : Ne mélange jamais de la confiserie avec de la viande.
+3. SI RIEN NE VA ENSEMBLE : Propose une recette très basique.
+
+=== TES 2 SUGGESTIONS ===
+Recette 1 (IMMEDIATE - La Débrouille) :
+- Titre : 2-4 mots. Utilise UNIQUEMENT des ingrédients de la liste.
+- missing_ingredients DOIT être un tableau vide [].
+- Temps : 15-20 min.
+
+Recette 2 (OBJECTIVE - L'Optimisée - ${goal}) :
+- Titre : 2-4 mots. Optimisée pour : ${goal}.
+- DOIT inclure exactement 1 ou 2 ingrédients ABSENTS.
+- missing_ingredients DOIT contenir ces 1-2 ingrédients. JAMAIS vide.
+- upgrade_reason : 1 phrase.
+- Temps : 25-40 min.
+
+Réponds EXACTEMENT dans ce format JSON :
+{
+  "suggestions": [
+    { "id": "1", "type": "IMMEDIATE", "title": "...", "subtitle": "...", "calories": "...", "time": "...", "match_score": 100, "used_ingredients": [...], "missing_ingredients": [], "upgrade_reason": "" },
+    { "id": "2", "type": "OBJECTIVE", "title": "...", "subtitle": "...", "calories": "...", "time": "...", "match_score": 90, "used_ingredients": [...], "missing_ingredients": [...], "upgrade_reason": "..." }
+  ]
+}`;
+
+    const localVertexAI = new VertexAI({
+      project: process.env.GCLOUD_PROJECT || "frigovision-71924",
+      location: "europe-west1",
+    });
+
+    const model = localVertexAI.getGenerativeModel({
+      model: "gemini-2.0-flash-001",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: quickRecipeSuggestionsSchema,
+        maxOutputTokens: 1536,
+        temperature: 0.4,
+      },
+    });
+
+    const result = await model.generateContent(prompt);
+    const rawText = result.response.candidates[0].content.parts[0].text;
+
+    let parsed;
+    try { parsed = JSON.parse(rawText); }
+    catch { parsed = cleanAndParseJSON(rawText); }
+
+    if (!parsed.suggestions || !Array.isArray(parsed.suggestions)) {
+      throw new Error("Format invalide reçu de l'IA");
+    }
+
+    return res.json(parsed);
+  } catch (error) {
+    console.error("❌ Erreur suggestRecipesQuick:", error.message);
+    next(error);
+  }
+}
+
+// =====================================================================
+// enrichRecipeSuggestions
+// =====================================================================
+
+async function enrichRecipeSuggestions(req, res) {
+  try {
+    const { suggestions, pantryItems } = req.body;
+    validateArray(suggestions, "Suggestions");
+    validateArray(pantryItems, "Pantry items");
+
+    const ingredientsList = pantryItems?.map((i) => i.name).join(", ") || "";
+
+    const model = vertexAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        maxOutputTokens: 1024,
+        temperature: 0.4,
+      },
+    });
+
+    const prompt = `Pour ces 2 recettes, liste les ingrédients utilisés et manquants.
+
+Recette 1: ${suggestions[0].title}
+Recette 2: ${suggestions[1].title}
+
+Ingrédients disponibles: ${ingredientsList}
+
+JSON:
+{
+  "enriched": [
+    { "id": "1", "used_ingredients": [...], "missing_ingredients": [] },
+    { "id": "2", "used_ingredients": [...], "missing_ingredients": [...] }
+  ]
+}`;
+
+    const result = await model.generateContent(prompt);
+    const parsed = JSON.parse(result.response.candidates[0].content.parts[0].text);
+
+    const enrichedSuggestions = suggestions.map((sug, idx) => ({
+      ...sug,
+      used_ingredients: parsed.enriched[idx]?.used_ingredients || [],
+      missing_ingredients: parsed.enriched[idx]?.missing_ingredients || [],
+    }));
+
+    return res.json({ suggestions: enrichedSuggestions });
+  } catch (error) {
+    console.error("❌ Erreur enrichRecipeSuggestions:", error.message);
+    const { suggestions } = req.body;
+    return res.json({
+      suggestions: (suggestions || []).map((s) => ({
+        ...s, used_ingredients: [], missing_ingredients: [],
+      })),
+    });
+  }
+}
+
+// =====================================================================
+// suggestRecipes (legacy)
+// =====================================================================
+
+async function suggestRecipes(req, res, next) {
+  try {
+    const { userProfile, pantryItems } = req.body;
+    validateArray(pantryItems, "Pantry items");
+
+    const ingredientsList = pantryItems?.map((i) => i.name).join(", ") || "Rien (Fonds de placard seulement)";
+    const diet = userProfile?.diet || "Équilibré";
+    const goal = userProfile?.context || "Manger sainement";
+
+    const prompt = `2 recettes rapides basées sur: ${ingredientsList}
+
+Règles:
+- Recette 1 (IMMEDIATE): 100% dispo, rapide
+- Recette 2 (OBJECTIVE): DOIT avoir 1-2 ingrédients manquants, ${goal}
+- Titres: 3-4 mots max
+- Subtitles: 1 phrase courte
+
+JSON:
+{
+  "suggestions": [
+    { "id": "1", "type": "IMMEDIATE", "title": "...", "subtitle": "...", "calories": "...", "time": "...", "match_score": 100, "used_ingredients": [...], "missing_ingredients": [] },
+    { "id": "2", "type": "OBJECTIVE", "title": "...", "subtitle": "...", "calories": "...", "time": "...", "match_score": 90, "used_ingredients": [...], "missing_ingredients": [...] }
+  ]
+}`;
+
+    const model = vertexAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        maxOutputTokens: 2048,
+        temperature: 0.5,
+      },
+    });
+
+    const result = await model.generateContent(prompt);
+    return res.json(
+      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
+    );
+  } catch (error) {
+    console.error("❌ Erreur suggestRecipes:", error.message);
+    next(error);
+  }
+}
+
+// =====================================================================
+// generateFullRecipe
+// =====================================================================
+
+async function generateFullRecipe(req, res, next) {
+  try {
+    const { selectedRecipeTitle, pantryItems, userProfile, missingIngredients } = req.body;
+    validateText(selectedRecipeTitle, "Titre recette");
+    validateArray(pantryItems, "Pantry items");
+    validateArray(missingIngredients, "Ingrédients manquants");
+
+    const inventoryWithQty = (pantryItems || [])
+      .map((i) => (i.quantity ? `${i.name} (${i.quantity})` : i.name))
+      .join(", ");
+    const basicContext = `Frigo: ${inventoryWithQty}. Diet: ${userProfile?.diet}.`;
+    const shoppingList = missingIngredients?.length > 0
+      ? `Ingrédients à acheter: ${missingIngredients.join(", ")}`
+      : "Aucun achat nécessaire.";
+
+    const prompt = `
+Recette choisie : "${selectedRecipeTitle}".
+Génère le guide complet de préparation.
+
+CONTEXTE: ${basicContext}
+${shoppingList}
+
+RÈGLES DE GÉNÉRATION :
+1. UNITÉS DES INGRÉDIENTS (CRUCIAL) : Pour chaque ingrédient du frigo, utilise EXACTEMENT la même unité.
+2. Quantités précises pour TOUS les ingrédients.
+3. Instructions claires et pédagogiques (4-6 étapes max).
+4. prep_time et cook_time: Format "XX min".
+5. difficulty: "Facile", "Moyen" ou "Difficile".
+6. servings: Nombre entier.
+7. calories_per_serving: Nombre entier.
+8. IMAGE PROMPT : Génère un prompt en ANGLAIS pour une IA photo-réaliste (FAL/Flux).
+   - Style obligatoire : "Professional food photography, Michelin star plating, 8K resolution, natural lighting, overhead shot, marble background, fresh ingredients, shallow depth of field, award-winning composition"
+   - Ne mentionne JAMAIS : people, hands, text, watermark
+9. chef_tip: Un conseil pratique du chef (1-2 phrases max).`;
+
+    const model = vertexAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: fullRecipeSchema,
+        maxOutputTokens: 4096,
+        temperature: 0.7,
+      },
+    });
+
+    const result = await model.generateContent(prompt);
+    const parsed = JSON.parse(result.response.candidates[0].content.parts[0].text);
+    return res.json(parsed);
+  } catch (error) {
+    console.error("❌ Erreur generateFullRecipe:", error.message);
+    next(error);
+  }
+}
+
+module.exports = {
+  generateRecipesAI,
+  getRecipeDetails,
+  detectIngredientEmoji,
+  suggestRecipesQuick,
+  enrichRecipeSuggestions,
+  suggestRecipes,
+  generateFullRecipe,
+};
