@@ -223,7 +223,7 @@ Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement 
     );
     const t1 = Date.now();
     const result1 = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: prompt1,
       config: modelConfig,
     });
@@ -268,7 +268,7 @@ Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement 
     );
     const t2 = Date.now();
     const result2 = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: prompt2,
       config: modelConfig,
     });
@@ -377,14 +377,13 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
     );
 
     const stream = await ai.models.generateContentStream({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: weeklySkeletonSchema,
         maxOutputTokens: 8192,
         temperature: 0.9,
-        thinkingConfig: { thinkingLevel: "medium" },
       },
     });
     let fullText = "";
@@ -546,7 +545,7 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
 
   try {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: skeletonPrompt,
       config: {
         responseMimeType: "application/json",
@@ -678,7 +677,6 @@ async function processMealIngredients(req, res) {
       responseSchema: weeklyMealsSchema,
       maxOutputTokens: 8192,
       temperature: 0.2,
-      thinkingConfig: { thinkingLevel: "low" },
     };
 
     const buildIngredientPrompt = (skeletonMeals, inv) => {
@@ -768,12 +766,12 @@ Chaque ingrédient est un OBJET avec 4 champs :
 
     const [result1, result2] = await Promise.all([
       ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: ingredientPrompt1,
         config: ingredientModelConfig,
       }),
       ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: ingredientPrompt2,
         config: ingredientModelConfig,
       }),
@@ -1088,7 +1086,7 @@ Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équil
     );
 
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
