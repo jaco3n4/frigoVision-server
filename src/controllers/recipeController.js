@@ -39,16 +39,20 @@ async function generateRecipesAI(req, res, next) {
       systemInstruction: { parts: [{ text: systemPrompt }] },
     });
 
+    const userMessage = `Ingrédients : ${ingredients.join(", ")}`;
+    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "generateRecipesAI", systemPrompt, userMessage }));
+
     const result = await model.generateContent({
       contents: [
-        { role: "user", parts: [{ text: `Ingrédients : ${ingredients.join(", ")}` }] },
+        { role: "user", parts: [{ text: userMessage }] },
       ],
       generationConfig: { responseMimeType: "application/json" },
     });
 
-    return res.json(
-      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
-    );
+    const rawResponse = result.response.candidates[0].content.parts[0].text;
+    console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "generateRecipesAI", response: rawResponse }));
+
+    return res.json(cleanAndParseJSON(rawResponse));
   } catch (error) {
     console.error("❌ Erreur generateRecipesAI:", error.message);
     next(error);
@@ -71,16 +75,20 @@ async function getRecipeDetails(req, res, next) {
       systemInstruction: { parts: [{ text: systemPrompt }] },
     });
 
+    const userMessage = `Ingrédients dispos: ${ingredients?.join(", ")}`;
+    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "getRecipeDetails", systemPrompt, userMessage }));
+
     const result = await model.generateContent({
       contents: [
-        { role: "user", parts: [{ text: `Ingrédients dispos: ${ingredients?.join(", ")}` }] },
+        { role: "user", parts: [{ text: userMessage }] },
       ],
       generationConfig: { responseMimeType: "application/json" },
     });
 
-    return res.json(
-      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
-    );
+    const rawResponse = result.response.candidates[0].content.parts[0].text;
+    console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "getRecipeDetails", response: rawResponse }));
+
+    return res.json(cleanAndParseJSON(rawResponse));
   } catch (error) {
     console.error("❌ Erreur getRecipeDetails:", error.message);
     next(error);
@@ -154,6 +162,7 @@ ${profileSection}${priorityRule}
 1. TRI SÉMANTIQUE : L'inventaire contient des erreurs (suppléments sportifs, objets, produits non-comestibles). IGNORE-LES TOUS.
 2. COHÉRENCE : Ne mélange jamais de la confiserie avec de la viande.
 3. SI RIEN NE VA ENSEMBLE : Propose une recette très basique.
+4. NOMS GÉNÉRIQUES : Les noms d'ingrédients doivent être GÉNÉRIQUES, SANS qualifier alimentaire (halal, casher, bio, vegan, fermier…). Ex: "Escalope de poulet", JAMAIS "Escalope de poulet halal".
 
 === TES 2 SUGGESTIONS ===
 Recette 1 (IMMEDIATE - La Débrouille) :
@@ -191,8 +200,11 @@ Réponds EXACTEMENT dans ce format JSON :
       },
     });
 
+    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "suggestRecipesQuick", prompt }));
+
     const result = await model.generateContent(prompt);
     const rawText = result.response.candidates[0].content.parts[0].text;
+    console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "suggestRecipesQuick", response: rawText }));
 
     let parsed;
     try { parsed = JSON.parse(rawText); }
@@ -245,8 +257,12 @@ JSON:
   ]
 }`;
 
+    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "enrichRecipeSuggestions", prompt }));
+
     const result = await model.generateContent(prompt);
-    const parsed = JSON.parse(result.response.candidates[0].content.parts[0].text);
+    const rawResponse = result.response.candidates[0].content.parts[0].text;
+    console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "enrichRecipeSuggestions", response: rawResponse }));
+    const parsed = JSON.parse(rawResponse);
 
     const enrichedSuggestions = suggestions.map((sug, idx) => ({
       ...sug,
@@ -304,10 +320,13 @@ JSON:
       },
     });
 
+    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "suggestRecipes", prompt }));
+
     const result = await model.generateContent(prompt);
-    return res.json(
-      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
-    );
+    const rawResponse = result.response.candidates[0].content.parts[0].text;
+    console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "suggestRecipes", response: rawResponse }));
+
+    return res.json(cleanAndParseJSON(rawResponse));
   } catch (error) {
     console.error("❌ Erreur suggestRecipes:", error.message);
     next(error);
@@ -342,7 +361,8 @@ ${shoppingList}
 
 RÈGLES DE GÉNÉRATION :
 1. UNITÉS DES INGRÉDIENTS (CRUCIAL) : Pour chaque ingrédient du frigo, utilise EXACTEMENT la même unité.
-2. Quantités précises pour TOUS les ingrédients.
+2. NOMS GÉNÉRIQUES : SANS qualifier alimentaire (halal, casher, bio, vegan, fermier…). Ex: "Escalope de poulet", JAMAIS "Escalope de poulet halal".
+3. Quantités précises pour TOUS les ingrédients.
 3. Instructions claires et pédagogiques (4-6 étapes max).
 4. prep_time et cook_time: Format "XX min".
 5. difficulty: "Facile", "Moyen" ou "Difficile".
@@ -363,8 +383,13 @@ RÈGLES DE GÉNÉRATION :
       },
     });
 
+    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "generateFullRecipe", prompt }));
+
     const result = await model.generateContent(prompt);
-    const parsed = JSON.parse(result.response.candidates[0].content.parts[0].text);
+    const rawResponse = result.response.candidates[0].content.parts[0].text;
+    console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "generateFullRecipe", response: rawResponse }));
+
+    const parsed = JSON.parse(rawResponse);
     return res.json(parsed);
   } catch (error) {
     console.error("❌ Erreur generateFullRecipe:", error.message);

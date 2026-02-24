@@ -3,12 +3,33 @@ const { VertexAI } = require("@google-cloud/vertexai");
 const { pubsub } = require("../config/pubsub");
 const { db, admin } = require("../config/firebase");
 const { cleanAndParseJSON } = require("../utils/json");
-const { buildProfileSection, readUserProfile } = require("../utils/profile");
-const { buildInventory, buildInventoryString, subtractUsedIngredients } = require("../utils/inventory");
-const { parseInventoryQuantity, matchIngredientId, normalizeIngName } = require("../utils/ingredients");
+const {
+  buildProfileSection,
+  buildEquipmentConstraint,
+  readUserProfile,
+} = require("../utils/profile");
+const {
+  buildInventory,
+  buildInventoryString,
+  subtractUsedIngredients,
+} = require("../utils/inventory");
+const {
+  parseInventoryQuantity,
+  matchIngredientId,
+  normalizeIngName,
+} = require("../utils/ingredients");
 const { postProcessIngredients } = require("../utils/postprocess");
-const { DIET_MAP, ALLERGY_MAP, EQUIPMENT_NAMES, DAY_KEYS } = require("../utils/constants");
-const { weeklyMealsSchema, weeklySkeletonSchema, singleMealSchema } = require("../schemas");
+const {
+  DIET_MAP,
+  ALLERGY_MAP,
+  EQUIPMENT_NAMES,
+  DAY_KEYS,
+} = require("../utils/constants");
+const {
+  weeklyMealsSchema,
+  weeklySkeletonSchema,
+  singleMealSchema,
+} = require("../schemas");
 
 // =====================================================================
 // generateWeeklyPlan — V1 (cascade séquentielle)
@@ -18,7 +39,14 @@ async function generateWeeklyPlan(req, res, next) {
   const uid = req.user.uid;
   const { diet, calories } = req.body;
   const t0 = Date.now();
-  console.log("🟢 generateWeeklyPlan START — uid:", uid, "diet:", diet, "calories:", calories);
+  console.log(
+    "🟢 generateWeeklyPlan START — uid:",
+    uid,
+    "diet:",
+    diet,
+    "calories:",
+    calories,
+  );
 
   let pantryItems = [];
   let culinary = {};
@@ -31,20 +59,37 @@ async function generateWeeklyPlan(req, res, next) {
       culinary = data.culinaryProfile || {};
       equipment = data.equipment || [];
     }
-    console.log("📦 Profil chargé en", Date.now() - t0, "ms — pantry:", pantryItems.length, "items");
+    console.log(
+      "📦 Profil chargé en",
+      Date.now() - t0,
+      "ms — pantry:",
+      pantryItems.length,
+      "items",
+    );
   } catch (err) {
     console.warn("⚠️ Impossible de lire le profil utilisateur:", err.message);
   }
 
-  const { profileSection, dietLabel } = buildProfileSection(culinary, diet, equipment);
+  const { profileSection, dietLabel } = buildProfileSection(
+    culinary,
+    diet,
+    equipment,
+  );
 
   const inventory = pantryItems.map((item) => {
     const qty = parseInventoryQuantity(item.quantity);
     const matched = matchIngredientId(item.name);
-    return { name: item.name, amount: qty.amount, unit: qty.unit, ingredientId: matched.id };
+    return {
+      name: item.name,
+      amount: qty.amount,
+      unit: qty.unit,
+      ingredientId: matched.id,
+    };
   });
 
   const kcalTarget = calories || 2000;
+  const kcalPerMeal = Math.round(kcalTarget / 2);
+  const equipmentConstraint = buildEquipmentConstraint(equipment);
 
   const buildPrompt = (days, inventoryStr, isSecondHalf, previousMeals) => {
     const daysList = days.join(", ");
@@ -60,14 +105,16 @@ Objectif : utiliser le MAXIMUM d'ingrédients FRAIS du frigo avant qu'ils ne pé
 
     let alreadyPlannedSection = "";
     if (previousMeals && previousMeals.length > 0) {
-      const mealList = previousMeals.map((m) => `- ${m.day} ${m.slot}: ${m.title}`).join("\n");
+      const mealList = previousMeals
+        .map((m) => `- ${m.day} ${m.slot}: ${m.title}`)
+        .join("\n");
       alreadyPlannedSection = `\n=== REPAS DÉJÀ PLANIFIÉS (Lundi-Mercredi) — INTERDIT de les répéter ou de proposer quelque chose de similaire ===
 ${mealList}
 Tu DOIS proposer des plats COMPLÈTEMENT DIFFÉRENTS en termes de protéine principale, technique de cuisson et style culinaire.\n`;
     }
 
     return `Tu es un chef nutritionniste créatif et ingénieux.
-${profileSection}
+${profileSection}${equipmentConstraint}
 === PLACARD DE BASE (toujours disponible, NE PAS lister dans les ingrédients) ===
 Sel, poivre, huile d'olive, huile neutre, vinaigre, farine, sucre, ail, oignon, épices sèches communes (cumin, paprika, curry, herbes de Provence, thym, laurier).
 
@@ -77,7 +124,7 @@ ${priorityNote}
 ${alreadyPlannedSection}
 === MISSION ===
 Génère les repas pour ${daysList}, Midi (lunch) et Soir (dinner).
-Cible : ${kcalTarget} kcal/jour. Régime : ${dietLabel || "Équilibré"}.
+Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équilibré"}.
 
 === RÈGLE DE DIVERSITÉ (ANTI-RÉPÉTITION) ===
 Si l'inventaire du frigo est limité, tu as l'INTERDICTION de proposer deux recettes avec la même structure technique la même semaine. Tu DOIS varier les plaisirs en utilisant 3 leviers :
@@ -85,23 +132,26 @@ Si l'inventaire du frigo est limité, tu as l'INTERDICTION de proposer deux rece
 - La DÉCOUPE : Varie la présentation (en dés, râpé, en lamelles, entier, émincé, haché).
 - Le PIVOT CRÉATIF : Si le frigo est trop pauvre pour garantir de la variété, tu DOIS proposer l'achat de 1 ou 2 ingrédients "pivots".
 
+=== COHÉRENCE CALORIQUE ===
+Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement la taille d'un plat léger (ex: pas d'omelette géante). Tu DOIS imaginer des accompagnements denses en énergie (fromage, pain, riz, avocat, oléagineux) et les inclure obligatoirement dans la description.
+
 === RÈGLES GÉNÉRALES ===
 1. Utilise EN PRIORITÉ les ingrédients du frigo.
 2. Les ingrédients du placard de base n'ont PAS besoin d'être listés dans les ingrédients.
 3. Si le frigo ne suffit pas, ajoute des ingrédients à acheter.
-4. Chaque repas : titre court (2-4 mots), calories estimées, liste d'ingrédients.
+4. Chaque repas : titre court (2-4 mots), calories estimées (~${kcalPerMeal} kcal), liste d'ingrédients.
 5. Pour "day" utilise : monday, tuesday, wednesday, thursday, friday, saturday, sunday.
 6. Pour "slot" utilise : lunch ou dinner.
 7. FORMAT INGRÉDIENTS — chaque ingrédient est un OBJET avec 4 champs :
    - "ingredient_id" : pour les ingrédients du FRIGO qui ont un [ID:xxx], RECOPIE cet ID exactement. Pour les ingrédients à ACHETER (pas dans le frigo), mets "".
    - "name" : nom de l'ingrédient (ex: "Poulet", "Feta").
    - "quantity" : nombre (ex: 150, 2, 0.5). Jamais 0.
-   - "unit" : unité parmi "g", "kg", "ml", "cl", "l", "piece", "cs", "cc" ou "".`;
+   - "unit" : unité STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.`;
   };
 
   try {
     const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.0-flash-001",
+      model: "gemini-3-flash-preview",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: weeklyMealsSchema,
@@ -112,18 +162,28 @@ Si l'inventaire du frigo est limité, tu as l'INTERDICTION de proposer deux rece
 
     const parseMeals = (result, label) => {
       const candidate = result.response.candidates?.[0];
-      if (!candidate) { console.error(`⚠️ ${label} — Aucun candidate retourné`); return []; }
+      if (!candidate) {
+        console.error(`⚠️ ${label} — Aucun candidate retourné`);
+        return [];
+      }
       const finishReason = candidate.finishReason;
       if (finishReason && finishReason !== "STOP") {
         console.warn(`⚠️ ${label} — finishReason: ${finishReason}`);
       }
       const raw = candidate.content?.parts?.[0]?.text;
-      if (!raw) { console.error(`⚠️ ${label} — Pas de texte dans la réponse`); return []; }
-      console.log(`📦 ${label} — raw length: ${raw.length} chars, finishReason: ${finishReason}`);
+      if (!raw) {
+        console.error(`⚠️ ${label} — Pas de texte dans la réponse`);
+        return [];
+      }
+      console.log(
+        `📦 ${label} — raw length: ${raw.length} chars, finishReason: ${finishReason}`,
+      );
       try {
         return JSON.parse(raw).meals || [];
       } catch {
-        console.warn(`⚠️ ${label} — JSON.parse échoué, tentative cleanAndParseJSON...`);
+        console.warn(
+          `⚠️ ${label} — JSON.parse échoué, tentative cleanAndParseJSON...`,
+        );
         return cleanAndParseJSON(raw).meals || [];
       }
     };
@@ -145,16 +205,41 @@ Si l'inventaire du frigo est limité, tu as l'INTERDICTION de proposer deux rece
     };
 
     const plan = {};
-    for (const dk of DAY_KEYS) { plan[dk] = { lunch: null, dinner: null }; }
+    for (const dk of DAY_KEYS) {
+      plan[dk] = { lunch: null, dinner: null };
+    }
 
     // CALL 1 : Lun-Mer
-    console.log("🔵 CALL 1 (Lun-Mer) — inventaire:", inventory.length, "items");
-    const t1 = Date.now();
-    const result1 = await model.generateContent(
-      buildPrompt(["Monday (Lundi)", "Tuesday (Mardi)", "Wednesday (Mercredi)"], buildInventoryString(inventory), false, null),
+    const prompt1 = buildPrompt(
+      ["Monday (Lundi)", "Tuesday (Mardi)", "Wednesday (Mercredi)"],
+      buildInventoryString(inventory),
+      false,
+      null,
     );
+    console.log(
+      JSON.stringify({
+        event: "AI_REQUEST",
+        fn: "generateWeeklyPlan",
+        call: "1_LunMer",
+        inventoryCount: inventory.length,
+        prompt: prompt1,
+      }),
+    );
+    const t1 = Date.now();
+    const result1 = await model.generateContent(prompt1);
+    const raw1 =
+      result1.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const meals1 = parseMeals(result1, "CALL 1 (Lun-Mer)");
-    console.log("✅ CALL 1 terminé en", Date.now() - t1, "ms —", meals1.length, "repas");
+    console.log(
+      JSON.stringify({
+        event: "AI_RESPONSE",
+        fn: "generateWeeklyPlan",
+        call: "1_LunMer",
+        durationMs: Date.now() - t1,
+        mealsCount: meals1.length,
+        response: raw1,
+      }),
+    );
 
     fillMeals(plan, meals1);
     await planDocRef.set({ ...plan, isGenerating: true });
@@ -162,13 +247,41 @@ Si l'inventaire du frigo est limité, tu as l'INTERDICTION de proposer deux rece
     const updatedInventory = subtractUsedIngredients(inventory, meals1);
 
     // CALL 2 : Jeu-Dim
-    console.log("🔵 CALL 2 (Jeu-Dim) — inventaire restant:", updatedInventory.length, "items");
-    const t2 = Date.now();
-    const result2 = await model.generateContent(
-      buildPrompt(["Thursday (Jeudi)", "Friday (Vendredi)", "Saturday (Samedi)", "Sunday (Dimanche)"], buildInventoryString(updatedInventory), true, meals1),
+    const prompt2 = buildPrompt(
+      [
+        "Thursday (Jeudi)",
+        "Friday (Vendredi)",
+        "Saturday (Samedi)",
+        "Sunday (Dimanche)",
+      ],
+      buildInventoryString(updatedInventory),
+      true,
+      meals1,
     );
+    console.log(
+      JSON.stringify({
+        event: "AI_REQUEST",
+        fn: "generateWeeklyPlan",
+        call: "2_JeuDim",
+        inventoryCount: updatedInventory.length,
+        prompt: prompt2,
+      }),
+    );
+    const t2 = Date.now();
+    const result2 = await model.generateContent(prompt2);
+    const raw2 =
+      result2.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const meals2 = parseMeals(result2, "CALL 2 (Jeu-Dim)");
-    console.log("✅ CALL 2 terminé en", Date.now() - t2, "ms —", meals2.length, "repas");
+    console.log(
+      JSON.stringify({
+        event: "AI_RESPONSE",
+        fn: "generateWeeklyPlan",
+        call: "2_JeuDim",
+        durationMs: Date.now() - t2,
+        mealsCount: meals2.length,
+        response: raw2,
+      }),
+    );
 
     fillMeals(plan, meals2);
     await planDocRef.set({ ...plan, isGenerating: false });
@@ -200,7 +313,7 @@ async function streamWeeklyPlan(req, res) {
   res.set({
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
+    Connection: "keep-alive",
     "X-Accel-Buffering": "no",
   });
   res.flushHeaders();
@@ -209,30 +322,44 @@ async function streamWeeklyPlan(req, res) {
 
   try {
     const { pantryItems, culinary, equipment } = await readUserProfile(uid);
-    const { profileSection, dietLabel } = buildProfileSection(culinary, diet, equipment);
+    const { profileSection, dietLabel } = buildProfileSection(
+      culinary,
+      diet,
+      equipment,
+    );
     const inventory = buildInventory(pantryItems);
     const inventoryStr = buildInventoryString(inventory, { includeIds: false });
     const kcalTarget = calories || nutrition?.kcal || 2000;
+    const kcalPerMeal = Math.round(kcalTarget / 2);
+    const equipmentConstraint = buildEquipmentConstraint(equipment);
 
-    console.log("📦 Profil chargé en", Date.now() - t0, "ms — pantry:", pantryItems.length, "items");
+    console.log(
+      "📦 Profil chargé en",
+      Date.now() - t0,
+      "ms — pantry:",
+      pantryItems.length,
+      "items",
+    );
 
     const emptyPlan = {};
-    for (const dk of DAY_KEYS) { emptyPlan[dk] = { lunch: null, dinner: null }; }
+    for (const dk of DAY_KEYS) {
+      emptyPlan[dk] = { lunch: null, dinner: null };
+    }
     await planDocRef.set({ ...emptyPlan, isGenerating: true });
 
     const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: weeklySkeletonSchema,
         maxOutputTokens: 8192,
         temperature: 0.9,
-        thinkingConfig: { thinkingBudget: 2048 },
+        thinkingConfig: { thinkingLevel: "MEDIUM" },
       },
     });
 
     const prompt = `Tu es un chef nutritionniste créatif et ingénieux. Tu conçois des menus exceptionnels.
-${profileSection}
+${profileSection}${equipmentConstraint}
 === INVENTAIRE FRIGO (pour contexte — les ingrédients seront calculés séparément) ===
 ${inventoryStr}
 
@@ -241,17 +368,22 @@ Tu DOIS concevoir tes 14 repas de manière à utiliser au moins 80% des ingrédi
 
 === MISSION ===
 Conçois un menu de 14 repas pour la semaine (Lundi-Dimanche, Midi et Soir).
-Cible : ~${kcalTarget} kcal/jour. Régime : ${dietLabel || "Équilibré"}.
+Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équilibré"}.
 NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
 
 === RÈGLES ===
 1. Titre court et appétissant (2-4 mots max).
 2. Description : 1 phrase évocatrice et gourmande (max 15 mots).
-3. Calories estimées par repas (environ la moitié du budget journalier).
-4. VARIÉTÉ ABSOLUE : chaque repas doit avoir une protéine, une technique de cuisson et un style culinaire différents.
-5. Alterne les cuisines du monde : française, italienne, asiatique, méditerranéenne, mexicaine, indienne, etc.
-6. Pour "day" utilise : monday, tuesday, wednesday, thursday, friday, saturday, sunday.
-7. Pour "slot" utilise : lunch ou dinner.`;
+3. Calories estimées par repas (~${kcalPerMeal} kcal).
+4. COHÉRENCE CALORIQUE : Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement la taille d'un plat léger (ex: pas d'omelette géante). Tu DOIS imaginer des accompagnements denses en énergie (fromage, pain, riz, avocat, oléagineux) et les inclure obligatoirement dans la description.
+5. VARIÉTÉ ABSOLUE : chaque repas doit avoir une protéine, une technique de cuisson et un style culinaire différents.
+6. Alterne les cuisines du monde : française, italienne, asiatique, méditerranéenne, mexicaine, indienne, etc.
+7. Pour "day" utilise : monday, tuesday, wednesday, thursday, friday, saturday, sunday.
+8. Pour "slot" utilise : lunch ou dinner.`;
+
+    console.log(
+      JSON.stringify({ event: "AI_REQUEST", fn: "streamWeeklyPlan", prompt }),
+    );
 
     const streamResult = await model.generateContentStream(prompt);
     let fullText = "";
@@ -266,7 +398,14 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
       }
     }
 
-    console.log("📦 Stream terminé — fullText length:", fullText.length, "chars");
+    console.log(
+      JSON.stringify({
+        event: "AI_RESPONSE",
+        fn: "streamWeeklyPlan",
+        length: fullText.length,
+        response: fullText,
+      }),
+    );
 
     let meals;
     try {
@@ -275,15 +414,26 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
       try {
         meals = cleanAndParseJSON(fullText).meals || [];
       } catch {
-        console.error("❌ Échec total parsing streaming:", fullText.slice(0, 500));
+        console.error(
+          "❌ Échec total parsing streaming:",
+          fullText.slice(0, 500),
+        );
         throw new Error("Format JSON invalide généré par l'IA.");
       }
     }
 
-    console.log("✅ Stream parsé:", meals.length, "repas en", Date.now() - t0, "ms");
+    console.log(
+      "✅ Stream parsé:",
+      meals.length,
+      "repas en",
+      Date.now() - t0,
+      "ms",
+    );
 
     const plan = {};
-    for (const dk of DAY_KEYS) { plan[dk] = { lunch: null, dinner: null }; }
+    for (const dk of DAY_KEYS) {
+      plan[dk] = { lunch: null, dinner: null };
+    }
     for (const m of meals) {
       const dk = (m.day || "").toLowerCase();
       const slot = (m.slot || "").toLowerCase();
@@ -309,25 +459,44 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
           calories: m.calories || 0,
         })),
         inventory: inventory.map((i) => ({
-          name: i.name, amount: i.amount, unit: i.unit, ingredientId: i.ingredientId,
+          name: i.name,
+          amount: i.amount,
+          unit: i.unit,
+          ingredientId: i.ingredientId,
         })),
         profileSection,
         dietLabel,
         kcalTarget: Number(kcalTarget),
+        equipmentConstraint,
       };
-      await pubsub.topic("process-meal-ingredients").publishMessage({ json: pubsubPayload });
+      await pubsub
+        .topic("process-meal-ingredients")
+        .publishMessage({ json: pubsubPayload });
       console.log("📨 Pub/Sub — Phase B déclenchée");
     }
 
     res.write(`data: ${JSON.stringify({ event: "complete" })}\n\n`);
-    console.log("🏁 streamWeeklyPlan DONE en", Date.now() - t0, "ms —", meals.length, "repas");
+    console.log(
+      "🏁 streamWeeklyPlan DONE en",
+      Date.now() - t0,
+      "ms —",
+      meals.length,
+      "repas",
+    );
     res.end();
   } catch (error) {
     console.error("❌ streamWeeklyPlan ERROR:", error.message, error.stack);
-    res.write(`data: ${JSON.stringify({ event: "error", message: error.message })}\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ event: "error", message: error.message })}\n\n`,
+    );
     try {
-      await planDocRef.set({ isGenerating: false, generationError: error.message }, { merge: true });
-    } catch { /* silent */ }
+      await planDocRef.set(
+        { isGenerating: false, generationError: error.message },
+        { merge: true },
+      );
+    } catch {
+      /* silent */
+    }
     res.end();
   }
 }
@@ -343,13 +512,19 @@ async function generateWeeklyPlanSkeleton(req, res, next) {
   console.log("🟢 generateWeeklyPlanSkeleton START — uid:", uid, "diet:", diet);
 
   const { pantryItems, culinary, equipment } = await readUserProfile(uid);
-  const { profileSection, dietLabel } = buildProfileSection(culinary, diet, equipment);
+  const { profileSection, dietLabel } = buildProfileSection(
+    culinary,
+    diet,
+    equipment,
+  );
   const inventory = buildInventory(pantryItems);
   const inventoryStr = buildInventoryString(inventory, { includeIds: false });
   const kcalTarget = calories || nutrition?.kcal || 2000;
+  const kcalPerMeal = Math.round(kcalTarget / 2);
+  const equipmentConstraint = buildEquipmentConstraint(equipment);
 
   const skeletonPrompt = `Tu es un chef nutritionniste créatif et ingénieux. Tu conçois des menus exceptionnels.
-${profileSection}
+${profileSection}${equipmentConstraint}
 === INVENTAIRE FRIGO (pour contexte — les ingrédients seront calculés séparément) ===
 ${inventoryStr}
 
@@ -358,21 +533,22 @@ Tu DOIS concevoir tes 14 repas de manière à utiliser au moins 80% des ingrédi
 
 === MISSION ===
 Conçois un menu de 14 repas pour la semaine (Lundi-Dimanche, Midi et Soir).
-Cible : ~${kcalTarget} kcal/jour. Régime : ${dietLabel || "Équilibré"}.
+Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équilibré"}.
 NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
 
 === RÈGLES ===
 1. Titre court et appétissant (2-4 mots max).
 2. Description : 1 phrase évocatrice et gourmande (max 15 mots).
-3. Calories estimées par repas (environ la moitié du budget journalier).
-4. VARIÉTÉ ABSOLUE : chaque repas doit avoir une protéine, une technique de cuisson et un style culinaire différents.
-5. Alterne les cuisines du monde.
-6. Pour "day" utilise : monday, tuesday, wednesday, thursday, friday, saturday, sunday.
-7. Pour "slot" utilise : lunch ou dinner.`;
+3. Calories estimées par repas (~${kcalPerMeal} kcal).
+4. COHÉRENCE CALORIQUE : Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement la taille d'un plat léger (ex: pas d'omelette géante). Tu DOIS imaginer des accompagnements denses en énergie (fromage, pain, riz, avocat, oléagineux) et les inclure obligatoirement dans la description.
+5. VARIÉTÉ ABSOLUE : chaque repas doit avoir une protéine, une technique de cuisson et un style culinaire différents.
+6. Alterne les cuisines du monde.
+7. Pour "day" utilise : monday, tuesday, wednesday, thursday, friday, saturday, sunday.
+8. Pour "slot" utilise : lunch ou dinner.`;
 
   try {
     const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: weeklySkeletonSchema,
@@ -386,20 +562,33 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
     if (!raw) throw new Error("Gemini n'a retourné aucun contenu");
 
     let meals;
-    try { meals = JSON.parse(raw).meals || []; }
-    catch { meals = cleanAndParseJSON(raw).meals || []; }
+    try {
+      meals = JSON.parse(raw).meals || [];
+    } catch {
+      meals = cleanAndParseJSON(raw).meals || [];
+    }
 
-    console.log("✅ Skeleton Gemini en", Date.now() - t0, "ms —", meals.length, "repas");
+    console.log(
+      "✅ Skeleton Gemini en",
+      Date.now() - t0,
+      "ms —",
+      meals.length,
+      "repas",
+    );
 
     const plan = {};
-    for (const dk of DAY_KEYS) { plan[dk] = { lunch: null, dinner: null }; }
+    for (const dk of DAY_KEYS) {
+      plan[dk] = { lunch: null, dinner: null };
+    }
     for (const m of meals) {
       const dk = (m.day || "").toLowerCase();
       const slot = (m.slot || "").toLowerCase();
       if (plan[dk] && (slot === "lunch" || slot === "dinner")) {
         plan[dk][slot] = {
-          title: m.title || "", description: m.description || "",
-          calories: m.calories || 0, ingredients: [],
+          title: m.title || "",
+          description: m.description || "",
+          calories: m.calories || 0,
+          ingredients: [],
         };
       }
     }
@@ -410,25 +599,41 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
     const pubsubPayload = {
       uid,
       meals: meals.map((m) => ({
-        day: (m.day || "").toLowerCase(), slot: (m.slot || "").toLowerCase(),
-        title: m.title || "", description: m.description || "", calories: m.calories || 0,
+        day: (m.day || "").toLowerCase(),
+        slot: (m.slot || "").toLowerCase(),
+        title: m.title || "",
+        description: m.description || "",
+        calories: m.calories || 0,
       })),
       inventory: inventory.map((i) => ({
-        name: i.name, amount: i.amount, unit: i.unit, ingredientId: i.ingredientId,
+        name: i.name,
+        amount: i.amount,
+        unit: i.unit,
+        ingredientId: i.ingredientId,
       })),
-      profileSection, dietLabel, kcalTarget: Number(kcalTarget),
+      profileSection,
+      dietLabel,
+      kcalTarget: Number(kcalTarget),
+      equipmentConstraint,
     };
-    await pubsub.topic("process-meal-ingredients").publishMessage({ json: pubsubPayload });
+    await pubsub
+      .topic("process-meal-ingredients")
+      .publishMessage({ json: pubsubPayload });
     console.log("🏁 generateWeeklyPlanSkeleton DONE en", Date.now() - t0, "ms");
 
     return res.json({ status: "skeleton_ready" });
   } catch (error) {
     console.error("❌ Erreur generateWeeklyPlanSkeleton:", error.message);
     try {
-      await db.doc(`users/${uid}/planning/current_week`).set(
-        { isGenerating: false, generationError: error.message }, { merge: true },
-      );
-    } catch { /* silent */ }
+      await db
+        .doc(`users/${uid}/planning/current_week`)
+        .set(
+          { isGenerating: false, generationError: error.message },
+          { merge: true },
+        );
+    } catch {
+      /* silent */
+    }
     next(error);
   }
 }
@@ -442,36 +647,57 @@ async function processMealIngredients(req, res) {
   let payload;
   if (req.body.message && req.body.message.data) {
     // Format Pub/Sub push subscription
-    payload = JSON.parse(Buffer.from(req.body.message.data, "base64").toString());
+    payload = JSON.parse(
+      Buffer.from(req.body.message.data, "base64").toString(),
+    );
   } else {
     // Appel direct HTTP
     payload = req.body;
   }
 
-  const { uid, meals, inventory, profileSection, dietLabel, kcalTarget } = payload;
+  const {
+    uid,
+    meals,
+    inventory,
+    profileSection,
+    dietLabel,
+    kcalTarget,
+    equipmentConstraint,
+  } = payload;
   const t0 = Date.now();
   const planDocRef = db.doc(`users/${uid}/planning/current_week`);
-  console.log("🟢 processMealIngredients START — uid:", uid, "meals:", meals.length);
+  console.log(
+    "🟢 processMealIngredients START — uid:",
+    uid,
+    "meals:",
+    meals.length,
+  );
 
   try {
+    const kcalPerMeal = Math.round((kcalTarget || 2000) / 2);
+
     const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.0-flash-001",
+      model: "gemini-3-flash-preview",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: weeklyMealsSchema,
         maxOutputTokens: 8192,
         temperature: 0.2,
+        thinkingConfig: { thinkingLevel: "LOW" },
       },
     });
 
     const buildIngredientPrompt = (skeletonMeals, inv) => {
       const inventoryStr = buildInventoryString(inv);
       const mealsToProcess = skeletonMeals
-        .map((m) => `- ${m.day} ${m.slot}: "${m.title}" (${m.description}) ~${m.calories} kcal`)
+        .map(
+          (m) =>
+            `- ${m.day} ${m.slot}: "${m.title}" (${m.description}) ~${m.calories} kcal`,
+        )
         .join("\n");
 
       return `Tu es un chef nutritionniste.
-${profileSection}
+${profileSection}${equipmentConstraint || ""}
 === PLACARD DE BASE (toujours disponible, NE PAS lister dans les ingrédients) ===
 Sel, poivre, huile d'olive, huile neutre, vinaigre, farine, sucre, ail, oignon, épices sèches communes (cumin, paprika, curry, herbes de Provence, thym, laurier).
 
@@ -484,44 +710,122 @@ ${mealsToProcess}
 === MISSION ===
 Pour chaque repas listé ci-dessus, génère la liste exacte des ingrédients nécessaires.
 Tu DOIS conserver EXACTEMENT les mêmes titres. Tu ajoutes UNIQUEMENT les ingrédients.
-Cible : ~${kcalTarget} kcal/jour. Régime : ${dietLabel || "Équilibré"}.
+Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équilibré"}.
 
 === RÈGLE ANTI-GASPI ===
 Utilise en priorité l'inventaire du frigo pour composer la recette.
 
+=== ACCOMPAGNEMENTS ===
+Attention : si des accompagnements ont été générés pour atteindre les calories (riz, pain, fromage, etc.), ils DOIVENT figurer dans la liste d'ingrédients avec leur quantité exacte.
+
 === FORMAT INGRÉDIENTS ===
 Chaque ingrédient est un OBJET avec 4 champs :
 - "ingredient_id" : pour les ingrédients du FRIGO qui ont un [ID:xxx], RECOPIE cet ID exactement. Pour les ingrédients à ACHETER, mets "".
-- "name" : nom de l'ingrédient.
+- "name" : nom GÉNÉRIQUE de l'ingrédient, SANS qualifier alimentaire (halal, casher, bio, vegan, fermier, label rouge…). Exemple : "Escalope de poulet", JAMAIS "Escalope de poulet halal". Le régime de l'utilisateur est déjà pris en compte.
 - "quantity" : nombre (ex: 150, 2, 0.5). Jamais 0.
-- "unit" : unité parmi "g", "kg", "ml", "cl", "l", "piece", "cs", "cc" ou "".`;
+- "unit" : unité STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.`;
     };
 
-    const firstHalfMeals = meals.filter((m) => ["monday", "tuesday", "wednesday"].includes(m.day));
-    const secondHalfMeals = meals.filter((m) => ["thursday", "friday", "saturday", "sunday"].includes(m.day));
-    console.log("🔵 INGREDIENTS — Lun-Mer:", firstHalfMeals.length, "repas | Jeu-Dim:", secondHalfMeals.length, "repas");
+    const firstHalfMeals = meals.filter((m) =>
+      ["monday", "tuesday", "wednesday"].includes(m.day),
+    );
+    const secondHalfMeals = meals.filter((m) =>
+      ["thursday", "friday", "saturday", "sunday"].includes(m.day),
+    );
+    console.log(
+      "🔵 INGREDIENTS — Lun-Mer:",
+      firstHalfMeals.length,
+      "repas | Jeu-Dim:",
+      secondHalfMeals.length,
+      "repas",
+    );
 
     const inventoryForPrompt = (inventory || []).map((i) => ({
-      name: i.name, amount: i.amount, unit: i.unit, ingredientId: i.ingredientId,
+      name: i.name,
+      amount: i.amount,
+      unit: i.unit,
+      ingredientId: i.ingredientId,
     }));
 
+    const ingredientPrompt1 = buildIngredientPrompt(
+      firstHalfMeals,
+      inventoryForPrompt,
+    );
+    const ingredientPrompt2 = buildIngredientPrompt(
+      secondHalfMeals,
+      inventoryForPrompt,
+    );
+    console.log(
+      JSON.stringify({
+        event: "AI_REQUEST",
+        fn: "processMealIngredients",
+        call: "1_LunMer",
+        prompt: ingredientPrompt1,
+      }),
+    );
+    console.log(
+      JSON.stringify({
+        event: "AI_REQUEST",
+        fn: "processMealIngredients",
+        call: "2_JeuDim",
+        prompt: ingredientPrompt2,
+      }),
+    );
+
     const [result1, result2] = await Promise.all([
-      model.generateContent(buildIngredientPrompt(firstHalfMeals, inventoryForPrompt)),
-      model.generateContent(buildIngredientPrompt(secondHalfMeals, inventoryForPrompt)),
+      model.generateContent(ingredientPrompt1),
+      model.generateContent(ingredientPrompt2),
     ]);
+
+    const rawIngredients1 =
+      result1.response.candidates?.[0]?.content?.parts?.find(
+        (p) => !p.thought && p.text,
+      )?.text || "";
+    const rawIngredients2 =
+      result2.response.candidates?.[0]?.content?.parts?.find(
+        (p) => !p.thought && p.text,
+      )?.text || "";
+    console.log(
+      JSON.stringify({
+        event: "AI_RESPONSE",
+        fn: "processMealIngredients",
+        call: "1_LunMer",
+        response: rawIngredients1,
+      }),
+    );
+    console.log(
+      JSON.stringify({
+        event: "AI_RESPONSE",
+        fn: "processMealIngredients",
+        call: "2_JeuDim",
+        response: rawIngredients2,
+      }),
+    );
 
     const parseParts = (result, label) => {
       const parts = result.response.candidates?.[0]?.content?.parts || [];
       const contentPart = parts.find((p) => !p.thought && p.text);
       const raw = contentPart?.text;
-      if (!raw) { console.error(`❌ ${label} : aucun contenu`); return []; }
-      try { return JSON.parse(raw).meals || []; }
-      catch { return cleanAndParseJSON(raw).meals || []; }
+      if (!raw) {
+        console.error(`❌ ${label} : aucun contenu`);
+        return [];
+      }
+      try {
+        return JSON.parse(raw).meals || [];
+      } catch {
+        return cleanAndParseJSON(raw).meals || [];
+      }
     };
 
     const meals1 = parseParts(result1, "CALL 1 (Lun-Mer)");
     const meals2 = parseParts(result2, "CALL 2 (Jeu-Dim)");
-    console.log("✅ Les 2 calls — Call1:", meals1.length, "repas | Call2:", meals2.length, "repas");
+    console.log(
+      "✅ Les 2 calls — Call1:",
+      meals1.length,
+      "repas | Call2:",
+      meals2.length,
+      "repas",
+    );
 
     const updateAll = {};
     const allUnmatched = [];
@@ -531,8 +835,12 @@ Chaque ingrédient est un OBJET avec 4 champs :
       const dk = (m.day || "").toLowerCase();
       const slot = (m.slot || "").toLowerCase();
       if (slot === "lunch" || slot === "dinner") {
-        const { ingredients: processed, unmatched, fuzzy, exact } =
-          postProcessIngredients(m.ingredients, `${dk}.${slot} — ${m.title}`);
+        const {
+          ingredients: processed,
+          unmatched,
+          fuzzy,
+          exact,
+        } = postProcessIngredients(m.ingredients, `${dk}.${slot} — ${m.title}`);
         updateAll[`${dk}.${slot}.ingredients`] = processed;
         if (m.calories) updateAll[`${dk}.${slot}.calories`] = m.calories;
         allUnmatched.push(...unmatched);
@@ -542,7 +850,9 @@ Chaque ingrédient est un OBJET avec 4 champs :
     }
     updateAll.isGenerating = false;
     await planDocRef.update(updateAll);
-    console.log("📝 Firestore update — tous les ingrédients écrits, isGenerating: false");
+    console.log(
+      "📝 Firestore update — tous les ingrédients écrits, isGenerating: false",
+    );
 
     // Queue unmatched
     if (allUnmatched.length > 0) {
@@ -552,24 +862,37 @@ Chaque ingrédient est un OBJET avec 4 champs :
         for (const item of allUnmatched) {
           const key = normalizeIngName(item.name);
           if (!key) continue;
-          if (!grouped.has(key)) grouped.set(key, { name: item.name, variants: new Set(), contexts: new Set() });
+          if (!grouped.has(key))
+            grouped.set(key, {
+              name: item.name,
+              variants: new Set(),
+              contexts: new Set(),
+            });
           const g = grouped.get(key);
           g.variants.add(item.name);
           if (item.context) g.contexts.add(item.context);
         }
         for (const [key, g] of grouped) {
           const docRef = db.collection("unmatched_ingredients").doc(key);
-          batch.set(docRef, {
-            name: g.name,
-            variants: admin.firestore.FieldValue.arrayUnion(...g.variants),
-            contexts: admin.firestore.FieldValue.arrayUnion(...[...g.contexts].slice(0, 5)),
-            count: admin.firestore.FieldValue.increment(1),
-            lastSeen: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
+          batch.set(
+            docRef,
+            {
+              name: g.name,
+              variants: admin.firestore.FieldValue.arrayUnion(...g.variants),
+              contexts: admin.firestore.FieldValue.arrayUnion(
+                ...[...g.contexts].slice(0, 5),
+              ),
+              count: admin.firestore.FieldValue.increment(1),
+              lastSeen: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
         }
         await batch.commit();
         console.log(`📦 ${grouped.size} ingrédients non-matchés enregistrés`);
-      } catch (e) { console.warn("⚠️ Erreur écriture unmatched:", e.message); }
+      } catch (e) {
+        console.warn("⚠️ Erreur écriture unmatched:", e.message);
+      }
     }
 
     // Queue fuzzy
@@ -580,24 +903,41 @@ Chaque ingrédient est un OBJET avec 4 champs :
         for (const item of allFuzzy) {
           const key = normalizeIngName(item.geminiName);
           if (!key) continue;
-          if (!grouped.has(key)) grouped.set(key, { geminiName: item.geminiName, canonicalName: item.canonicalName, ingredientId: item.ingredientId, variants: new Set(), contexts: new Set() });
+          if (!grouped.has(key))
+            grouped.set(key, {
+              geminiName: item.geminiName,
+              canonicalName: item.canonicalName,
+              ingredientId: item.ingredientId,
+              variants: new Set(),
+              contexts: new Set(),
+            });
           const g = grouped.get(key);
           g.variants.add(item.geminiName);
           if (item.context) g.contexts.add(item.context);
         }
         for (const [key, g] of grouped) {
           const docRef = db.collection("fuzzy_matched_ingredients").doc(key);
-          batch.set(docRef, {
-            geminiName: g.geminiName, canonicalName: g.canonicalName, ingredientId: g.ingredientId,
-            variants: admin.firestore.FieldValue.arrayUnion(...g.variants),
-            contexts: admin.firestore.FieldValue.arrayUnion(...[...g.contexts].slice(0, 5)),
-            count: admin.firestore.FieldValue.increment(1),
-            lastSeen: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
+          batch.set(
+            docRef,
+            {
+              geminiName: g.geminiName,
+              canonicalName: g.canonicalName,
+              ingredientId: g.ingredientId,
+              variants: admin.firestore.FieldValue.arrayUnion(...g.variants),
+              contexts: admin.firestore.FieldValue.arrayUnion(
+                ...[...g.contexts].slice(0, 5),
+              ),
+              count: admin.firestore.FieldValue.increment(1),
+              lastSeen: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
         }
         await batch.commit();
         console.log(`🔀 ${grouped.size} fuzzy matches enregistrés`);
-      } catch (e) { console.warn("⚠️ Erreur écriture fuzzy:", e.message); }
+      } catch (e) {
+        console.warn("⚠️ Erreur écriture fuzzy:", e.message);
+      }
     }
 
     // Queue exact
@@ -608,28 +948,50 @@ Chaque ingrédient est un OBJET avec 4 champs :
         for (const item of allExact) {
           const key = normalizeIngName(item.name);
           if (!key) continue;
-          if (!grouped.has(key)) grouped.set(key, { name: item.name, ingredientId: item.ingredientId, contexts: new Set() });
+          if (!grouped.has(key))
+            grouped.set(key, {
+              name: item.name,
+              ingredientId: item.ingredientId,
+              contexts: new Set(),
+            });
           const g = grouped.get(key);
           if (item.context) g.contexts.add(item.context);
         }
         for (const [key, g] of grouped) {
           const docRef = db.collection("exact_matched_ingredients").doc(key);
-          batch.set(docRef, {
-            name: g.name, ingredientId: g.ingredientId,
-            contexts: admin.firestore.FieldValue.arrayUnion(...[...g.contexts].slice(0, 5)),
-            count: admin.firestore.FieldValue.increment(1),
-            lastSeen: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
+          batch.set(
+            docRef,
+            {
+              name: g.name,
+              ingredientId: g.ingredientId,
+              contexts: admin.firestore.FieldValue.arrayUnion(
+                ...[...g.contexts].slice(0, 5),
+              ),
+              count: admin.firestore.FieldValue.increment(1),
+              lastSeen: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
         }
         await batch.commit();
         console.log(`✅ ${grouped.size} exact matches enregistrés`);
-      } catch (e) { console.warn("⚠️ Erreur écriture exact:", e.message); }
+      } catch (e) {
+        console.warn("⚠️ Erreur écriture exact:", e.message);
+      }
     }
 
-    console.log("🏁 processMealIngredients DONE en", Date.now() - t0, "ms total");
+    console.log(
+      "🏁 processMealIngredients DONE en",
+      Date.now() - t0,
+      "ms total",
+    );
     return res.json({ status: "ok" });
   } catch (error) {
-    console.error("❌ processMealIngredients ERROR:", error.message, error.stack);
+    console.error(
+      "❌ processMealIngredients ERROR:",
+      error.message,
+      error.stack,
+    );
     return res.status(500).json({ error: error.message });
   } finally {
     try {
@@ -638,7 +1000,9 @@ Chaque ingrédient est un OBJET avec 4 champs :
         await planDocRef.update({ isGenerating: false });
         console.log("🔓 isGenerating forcé à false dans finally");
       }
-    } catch (e) { console.error("⚠️ Impossible de reset isGenerating:", e.message); }
+    } catch (e) {
+      console.error("⚠️ Impossible de reset isGenerating:", e.message);
+    }
   }
 }
 
@@ -663,28 +1027,41 @@ async function regenerateSingleMeal(req, res, next) {
       culinary = data.culinaryProfile || {};
       equipment = data.equipment || [];
     }
-  } catch (err) { console.warn("⚠️ Profil read error:", err.message); }
+  } catch (err) {
+    console.warn("⚠️ Profil read error:", err.message);
+  }
 
-  const { profileSection, dietLabel } = buildProfileSection(culinary, preferences?.diet, equipment);
+  const { profileSection, dietLabel } = buildProfileSection(
+    culinary,
+    preferences?.diet,
+    equipment,
+  );
+  const equipmentConstraint = buildEquipmentConstraint(equipment);
 
-  const inventoryStr = pantryItems.length > 0
-    ? pantryItems.map((item) => {
-        const qty = parseInventoryQuantity(item.quantity);
-        const matched = matchIngredientId(item.name);
-        const idTag = matched.id ? `[ID:${matched.id}]` : "";
-        if (qty.amount > 0 && qty.unit && qty.unit !== "piece") return `${idTag}${item.name} (${qty.amount}${qty.unit})`;
-        if (qty.amount > 0) return `${idTag}${item.name} (${qty.amount})`;
-        return `${idTag}${item.name}`;
-      }).join(", ")
-    : "Frigo vide — propose une recette avec des ingrédients courants.";
+  const inventoryStr =
+    pantryItems.length > 0
+      ? pantryItems
+          .map((item) => {
+            const qty = parseInventoryQuantity(item.quantity);
+            const matched = matchIngredientId(item.name);
+            const idTag = matched.id ? `[ID:${matched.id}]` : "";
+            if (qty.amount > 0 && qty.unit && qty.unit !== "piece")
+              return `${idTag}${item.name} (${qty.amount}${qty.unit})`;
+            if (qty.amount > 0) return `${idTag}${item.name} (${qty.amount})`;
+            return `${idTag}${item.name}`;
+          })
+          .join(", ")
+      : "Frigo vide — propose une recette avec des ingrédients courants.";
 
   const existingMeals = currentMeals || [];
-  const exclusionList = existingMeals.map((m) => `- ${m.day} ${m.slot}: ${m.title} (${m.description || ""})`).join("\n");
+  const exclusionList = existingMeals
+    .map((m) => `- ${m.day} ${m.slot}: ${m.title} (${m.description || ""})`)
+    .join("\n");
   const kcalTarget = preferences?.kcal || preferences?.nutrition?.kcal || 2000;
   const kcalPerMeal = Math.round(kcalTarget / 2);
 
   const prompt = `Tu es un chef nutritionniste créatif et ingénieux.
-${profileSection}
+${profileSection}${equipmentConstraint}
 === PLACARD DE BASE (toujours disponible, NE PAS lister dans les ingrédients) ===
 Sel, poivre, huile d'olive, huile neutre, vinaigre, farine, sucre, ail, oignon, épices sèches communes.
 
@@ -696,18 +1073,20 @@ ${exclusionList || "(aucun)"}
 
 === MISSION ===
 Génère UN SEUL repas alternatif pour ${day} ${type === "lunch" ? "Midi" : "Soir"}.
-Cible : ~${kcalPerMeal} kcal. Régime : ${dietLabel || "Équilibré"}.
+Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équilibré"}.
 
 === RÈGLES ===
 1. Le plat DOIT être COMPLÈTEMENT DIFFÉRENT de tous les repas listés ci-dessus.
 2. Utilise en priorité les ingrédients du frigo.
 3. Titre court (2-4 mots), description (1 phrase appétissante).
-4. FORMAT INGRÉDIENTS — chaque ingrédient est un OBJET avec 4 champs :
-   - "ingredient_id", "name", "quantity", "unit".`;
+4. COHÉRENCE CALORIQUE : Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement la taille d'un plat léger (ex: pas d'omelette géante). Tu DOIS imaginer des accompagnements denses en énergie (fromage, pain, riz, avocat, oléagineux) et les inclure obligatoirement dans la description.
+5. FORMAT INGRÉDIENTS — chaque ingrédient est un OBJET avec 4 champs :
+   - "ingredient_id", "name", "quantity", "unit".
+   - "unit" : STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.`;
 
   try {
     const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.0-flash-001",
+      model: "gemini-3-flash-preview",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: singleMealSchema,
@@ -716,12 +1095,33 @@ Cible : ~${kcalPerMeal} kcal. Régime : ${dietLabel || "Équilibré"}.
       },
     });
 
+    console.log(
+      JSON.stringify({
+        event: "AI_REQUEST",
+        fn: "regenerateSingleMeal",
+        prompt,
+      }),
+    );
+
     const result = await model.generateContent(prompt);
     const text = result.response.candidates[0].content.parts[0].text;
+    console.log(
+      JSON.stringify({
+        event: "AI_RESPONSE",
+        fn: "regenerateSingleMeal",
+        response: text,
+      }),
+    );
+
     const parsed = JSON.parse(text);
     const m = parsed.meal;
 
-    console.log("✅ regenerateSingleMeal DONE en", Date.now() - t0, "ms —", m.title);
+    console.log(
+      "✅ regenerateSingleMeal DONE en",
+      Date.now() - t0,
+      "ms —",
+      m.title,
+    );
 
     return res.json({
       meal: {
@@ -729,7 +1129,11 @@ Cible : ~${kcalPerMeal} kcal. Régime : ${dietLabel || "Équilibré"}.
         description: m.description || "",
         calories: m.calories || 0,
         ingredients: postProcessIngredients(m.ingredients).ingredients,
-        macros: { protein: m.protein || 0, carbs: m.carbs || 0, fat: m.fat || 0 },
+        macros: {
+          protein: m.protein || 0,
+          carbs: m.carbs || 0,
+          fat: m.fat || 0,
+        },
       },
     });
   } catch (error) {

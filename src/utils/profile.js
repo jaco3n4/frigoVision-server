@@ -34,6 +34,16 @@ function buildProfileSection(culinary, diet, equipment) {
 }
 
 /**
+ * Construit la contrainte matériel stricte (conditionnelle).
+ * Retourne un bloc prompt uniquement si l'utilisateur n'a PAS de four.
+ */
+function buildEquipmentConstraint(equipment) {
+  const hasOven = Array.isArray(equipment) && equipment.includes("four");
+  if (hasOven) return "";
+  return `\n=== CONTRAINTE MATÉRIEL STRICTE ===\nL'utilisateur ne possède PAS de four. INTERDICTION ABSOLUE de proposer des plats "gratinés", "rôtis" ou cuits au four. Adapte pour cuisson à la poêle, casserole ou micro-ondes.\n`;
+}
+
+/**
  * Lit le profil utilisateur depuis Firestore.
  */
 async function readUserProfile(uid) {
@@ -54,4 +64,4 @@ async function readUserProfile(uid) {
   return { pantryItems, culinary, equipment };
 }
 
-module.exports = { buildProfileSection, readUserProfile };
+module.exports = { buildProfileSection, buildEquipmentConstraint, readUserProfile };

@@ -309,7 +309,7 @@
     "id": "ciqual_36002",
     "name": "Poulet",
     "description": "cuisse, viande et peau, cru",
-    "search_terms": "Poulet, poulet entier, filet de poulet, blanc de poulet, cuisse de poulet, émincé de poulet, escalope de poulet, poulet grillé, poulet rôti, poulet halal",
+    "search_terms": "Poulet, poulet entier, poulet grillé, poulet rôti, poulet halal",
     "category": "Boucherie & Charcuterie",
     "emoji": "🍗",
     "popularity_score": 100,
@@ -955,7 +955,7 @@
     "id": "custom_001",
     "name": "Steak haché",
     "description": "Viande de boeuf hachée",
-    "search_terms": "Steak haché, viande hachée, boeuf haché, steack haché",
+    "search_terms": "Steak haché, steack haché, steak hache, burger, galette de boeuf",
     "category": "Boucherie & Charcuterie",
     "emoji": "🥩",
     "popularity_score": 95,
@@ -1006,7 +1006,7 @@
     "id": "ciqual_19557",
     "name": "Yaourt",
     "description": "lait fermenté ou spécialité laitière sur lit de fruits, sucré",
-    "search_terms": "Yaourt, yaourt nature, yogourt, yaourt brassé, yaourt grec, yaourt velouté",
+    "search_terms": "Yaourt, yaourt nature, yogourt, yaourt brassé, yaourt velouté",
     "category": "Frais & Crémerie",
     "emoji": "🥛",
     "popularity_score": 95,
@@ -1533,7 +1533,7 @@
     "id": "ciqual_11005",
     "name": "Curry",
     "description": "poudre",
-    "search_terms": "Curry",
+    "search_terms": "Curry, curry en poudre, poudre de curry, curry madras, curry doux poudre",
     "category": "Épicerie & Condiments",
     "emoji": "🫙",
     "popularity_score": 90,
@@ -1618,7 +1618,7 @@
     "id": "custom_escalope_poulet",
     "name": "Escalope de poulet",
     "description": "Filet, cru",
-    "search_terms": "escalope de poulet blanc volaille, escalope poulet, blanc de poulet",
+    "search_terms": "Escalope de poulet, escalope poulet, blanc de poulet, filet de poulet, émincé de poulet, aiguillette de poulet",
     "category": "Boucherie & Charcuterie",
     "emoji": "🍗",
     "popularity_score": 90,
@@ -17559,23 +17559,6 @@
     "form": "solide",
     "default_unit": "g",
     "default_quantity": 100
-  },
-  {
-    "id": "ciqual_6260",
-    "name": "Haché à base de boeuf",
-    "description": "15% MG, cru, prémeballé",
-    "search_terms": "Haché à base de boeuf ou Préparation de viande hachée de boeuf, Haché à base de bœuf ou Préparation de viande hachée de bœuf, 15% MG, cru",
-    "category": "Boucherie & Charcuterie",
-    "emoji": "🥩",
-    "popularity_score": 70,
-    "nutrition": {
-      "kcal_100g": 0
-    },
-    "default_expiry_days": 4,
-    "piece_weight": null,
-    "form": "solide",
-    "default_unit": "g",
-    "default_quantity": 200
   },
   {
     "id": "ciqual_20063",
@@ -34000,23 +33983,6 @@
     "default_quantity": 200
   },
   {
-    "id": "custom_066",
-    "name": "Viande hachée",
-    "description": "boeuf haché, 5-15% MG",
-    "search_terms": "Viande hachée, boeuf haché, viande hachee, haché de boeuf",
-    "category": "Viandes & Poissons",
-    "emoji": "🥩",
-    "popularity_score": 85,
-    "nutrition": {
-      "kcal_100g": 200
-    },
-    "default_expiry_days": 3,
-    "piece_weight": null,
-    "form": "solide",
-    "default_unit": "g",
-    "default_quantity": 300
-  },
-  {
     "id": "custom_067",
     "name": "Sauce nuoc-mâm",
     "description": "sauce de poisson asiatique",
@@ -34221,23 +34187,6 @@
     "default_quantity": 400
   },
   {
-    "id": "custom_079",
-    "name": "Bœuf haché",
-    "description": "viande de bœuf hachée, 5-15% MG",
-    "search_terms": "Bœuf haché, boeuf haché, boeuf hache, viande hachée bœuf, steak haché bœuf, haché de bœuf, bœuf haché halal",
-    "category": "Boucherie & Charcuterie",
-    "emoji": "🥩",
-    "popularity_score": 85,
-    "nutrition": {
-      "kcal_100g": 196
-    },
-    "default_expiry_days": 3,
-    "piece_weight": null,
-    "form": "solide",
-    "default_unit": "g",
-    "default_quantity": 300
-  },
-  {
     "id": "custom_080",
     "name": "Filet de daurade",
     "description": "filet de daurade (dorade) frais",
@@ -34270,5 +34219,158 @@
     "form": "liquide",
     "default_unit": "L",
     "default_quantity": 1
+  },
+  {
+    "id": "custom_082",
+    "name": "Jalapeño",
+    "description": "Piment jalapeño, moyennement piquant",
+    "search_terms": "Jalapeño, jalapeno, jalapenos, jalapeños, piment jalapeno, piment jalapeño, piment vert mexicain",
+    "category": "Fruits & Légumes",
+    "emoji": "🌶️",
+    "popularity_score": 65,
+    "nutrition": {
+      "kcal_100g": 29
+    },
+    "default_expiry_days": 14,
+    "piece_weight": 15,
+    "form": "solide",
+    "default_unit": "piece",
+    "default_quantity": 2
+  },
+  {
+    "id": "custom_083",
+    "name": "Yaourt grec",
+    "description": "Yaourt grec épais, riche en protéines",
+    "search_terms": "Yaourt grec, yogourt grec, yaourt protéiné, skyr, yaourt épais, greek yogurt",
+    "category": "Frais & Crémerie",
+    "emoji": "🥛",
+    "popularity_score": 85,
+    "nutrition": {
+      "kcal_100g": 97
+    },
+    "default_expiry_days": 14,
+    "piece_weight": 150,
+    "form": "solide",
+    "default_unit": "piece",
+    "default_quantity": 2
+  },
+  {
+    "id": "custom_084",
+    "name": "Vinaigre blanc",
+    "description": "Vinaigre d'alcool blanc, polyvalent cuisine et ménage",
+    "search_terms": "Vinaigre blanc, vinaigre d'alcool, vinaigre cristal, vinaigre ménager, vinaigre transparent",
+    "category": "Épicerie & Condiments",
+    "emoji": "🫙",
+    "popularity_score": 80,
+    "nutrition": {
+      "kcal_100g": 20
+    },
+    "default_expiry_days": 730,
+    "piece_weight": null,
+    "form": "liquide",
+    "default_unit": "ml",
+    "default_quantity": 250
+  },
+  {
+    "id": "custom_085",
+    "name": "Bœuf haché",
+    "description": "viande de bœuf hachée, 5-15% MG",
+    "search_terms": "Bœuf haché, boeuf haché, boeuf hache, viande hachée, viande hachee, haché de boeuf, haché de bœuf, haché à base de boeuf, bœuf haché halal, viande hachée bœuf",
+    "category": "Boucherie & Charcuterie",
+    "emoji": "🥩",
+    "popularity_score": 85,
+    "nutrition": {
+      "kcal_100g": 196
+    },
+    "default_expiry_days": 3,
+    "piece_weight": null,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 300
+  },
+  {
+    "id": "custom_086",
+    "name": "Pâte de curry rouge",
+    "description": "pâte de curry rouge thaï",
+    "search_terms": "Pâte de curry rouge, pate de curry rouge, curry rouge, red curry paste, curry rouge thai, pâte curry rouge",
+    "category": "Épicerie & Condiments",
+    "emoji": "🌶️",
+    "popularity_score": 70,
+    "nutrition": {
+      "kcal_100g": 115
+    },
+    "default_expiry_days": 365,
+    "piece_weight": null,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 70
+  },
+  {
+    "id": "custom_087",
+    "name": "Pâte de curry",
+    "description": "pâte de curry doux ou jaune",
+    "search_terms": "Pâte de curry, pate de curry, pâte de curry doux, curry doux, pâte de curry jaune, curry jaune, yellow curry paste, pâte curry, curry paste",
+    "category": "Épicerie & Condiments",
+    "emoji": "🍛",
+    "popularity_score": 65,
+    "nutrition": {
+      "kcal_100g": 100
+    },
+    "default_expiry_days": 365,
+    "piece_weight": null,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 70
+  },
+  {
+    "id": "custom_088",
+    "name": "Pain burger",
+    "description": "pain à burger brioché",
+    "search_terms": "Pain burger, pain à burger, bun, buns, pain hamburger, pain brioché burger, brioche burger",
+    "category": "Boulangerie & Pains",
+    "emoji": "🍔",
+    "popularity_score": 75,
+    "nutrition": {
+      "kcal_100g": 290
+    },
+    "default_expiry_days": 5,
+    "piece_weight": 65,
+    "form": "solide",
+    "default_unit": "piece",
+    "default_quantity": 4
+  },
+  {
+    "id": "custom_089",
+    "name": "Orzo",
+    "description": "petites pâtes en forme de grain de riz",
+    "search_terms": "Orzo, risoni, pâtes orzo, pâtes risoni, kritharaki",
+    "category": "Épicerie & Condiments",
+    "emoji": "🍝",
+    "popularity_score": 60,
+    "nutrition": {
+      "kcal_100g": 350
+    },
+    "default_expiry_days": 365,
+    "piece_weight": null,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 200
+  },
+  {
+    "id": "custom_090",
+    "name": "Cuisse de poulet",
+    "description": "cuisse ou haut de cuisse, cru",
+    "search_terms": "Cuisse de poulet, cuisse poulet, haut de cuisse, haut de cuisse de poulet, pilon de poulet, pilon",
+    "category": "Boucherie & Charcuterie",
+    "emoji": "🍗",
+    "popularity_score": 85,
+    "nutrition": {
+      "kcal_100g": 173
+    },
+    "default_expiry_days": 4,
+    "piece_weight": 200,
+    "form": "solide",
+    "default_unit": "piece",
+    "default_quantity": 2
   }
 ]

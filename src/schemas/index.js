@@ -1,5 +1,8 @@
 const { SchemaType } = require("../config/vertexai");
 
+// Unités autorisées pour les ingrédients
+const ALLOWED_UNITS = ["kg", "g", "l", "cl", "ml", "piece"];
+
 // --- Schema : Repas avec ingrédients ---
 const weeklyMealsSchema = {
   type: SchemaType.OBJECT,
@@ -21,7 +24,7 @@ const weeklyMealsSchema = {
                 ingredient_id: { type: SchemaType.STRING },
                 name: { type: SchemaType.STRING },
                 quantity: { type: SchemaType.NUMBER },
-                unit: { type: SchemaType.STRING },
+                unit: { type: SchemaType.STRING, enum: ALLOWED_UNITS },
               },
               required: ["ingredient_id", "name", "quantity", "unit"],
             },
@@ -77,7 +80,7 @@ const singleMealSchema = {
               ingredient_id: { type: SchemaType.STRING },
               name: { type: SchemaType.STRING },
               quantity: { type: SchemaType.NUMBER },
-              unit: { type: SchemaType.STRING },
+              unit: { type: SchemaType.STRING, enum: ALLOWED_UNITS },
             },
             required: ["ingredient_id", "name", "quantity", "unit"],
           },

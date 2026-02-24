@@ -66,6 +66,45 @@ function parseInventoryQuantity(qtyStr) {
   return { amount: totalG, unit: lastUnit || "piece" };
 }
 
+// --- Strip qualifiers (halal, bio, surgelé…) avant matching ---
+
+const TRAILING_QUALIFIERS = [
+  /\s+halal$/i,
+  /\s+casher$/i,
+  /\s+bio$/i,
+  /\s+vegan$/i,
+  /\s+en conserve$/i,
+  /\s+en bo[iî]te$/i,
+  /\s+en bocal$/i,
+  /\s+en sachet$/i,
+  /\s+en barquette$/i,
+  /\s+surgel[eé][eé]?s?$/i,
+  /\s+congel[eé][eé]?s?$/i,
+  /\s+frais$/i,
+  /\s+fra[iî]che$/i,
+  /\s+r[aâ]p[eé][eé]?s?$/i,
+  /\s+grill[eé][eé]?s?$/i,
+  /\s+cru[eé]?s?$/i,
+  /\s+cuit[eé]?s?$/i,
+  /\s+s[eé]ch[eé][eé]?s?$/i,
+  /\s+fum[eé][eé]?s?$/i,
+  /\s+marin[eé][eé]?s?$/i,
+];
+
+function stripQualifiers(name) {
+  // 1. Strip parenthesized content
+  let result = name.replace(/\s*\([^)]*\)/g, "");
+  // 2. Strip trailing qualifiers (loop for chained: "halal surgelé")
+  let prev = "";
+  while (prev !== result) {
+    prev = result;
+    for (const pattern of TRAILING_QUALIFIERS) {
+      result = result.replace(pattern, "");
+    }
+  }
+  return result.replace(/\s+/g, " ").trim();
+}
+
 // --- Scoring et matching ---
 
 function scoreResult(r, normQuery) {
@@ -96,14 +135,14 @@ function pickBest(results, normQuery) {
 function matchIngredientId(rawName) {
   if (!rawName || !rawName.trim()) return { id: null, name: rawName };
 
-  const cleaned = rawName.trim().replace(/\([^)]*\)/g, "").trim();
+  const cleaned = stripQualifiers(rawName.trim());
   const query = cleaned || rawName.trim();
   const normQuery = normalizeIngName(query);
 
   let globalBest = null;
   let globalBestScore = 0;
 
-  // 1. AND
+  // 1. AND — multi-word match (most reliable)
   const andResults = ingredientSearch.search(query, { combineWith: "AND" });
   for (let i = 0; i < Math.min(andResults.length, 10); i++) {
     const adjusted = scoreResult(andResults[i], normQuery);
@@ -113,20 +152,23 @@ function matchIngredientId(rawName) {
     }
   }
 
-  // 2. Per-word
-  const words = frenchTokenize(query).filter(
-    (w) => frenchProcessTerm(w) !== false,
-  );
-  if (words.length > 1) {
-    for (const word of words) {
-      const wordResults = ingredientSearch.search(word);
-      if (wordResults.length === 0) continue;
-      const normWord = normalizeIngName(word);
-      for (let i = 0; i < Math.min(wordResults.length, 5); i++) {
-        const adjusted = scoreResult(wordResults[i], normWord);
-        if (adjusted > globalBestScore) {
-          globalBest = wordResults[i];
-          globalBestScore = adjusted;
+  // 2. Per-word — ONLY if AND found nothing (single-word matches
+  //    should not override a multi-word AND match)
+  if (!globalBest) {
+    const words = frenchTokenize(query).filter(
+      (w) => frenchProcessTerm(w) !== false,
+    );
+    if (words.length > 1) {
+      for (const word of words) {
+        const wordResults = ingredientSearch.search(word);
+        if (wordResults.length === 0) continue;
+        const normWord = normalizeIngName(word);
+        for (let i = 0; i < Math.min(wordResults.length, 5); i++) {
+          const adjusted = scoreResult(wordResults[i], normWord);
+          if (adjusted > globalBestScore) {
+            globalBest = wordResults[i];
+            globalBestScore = adjusted;
+          }
         }
       }
     }
