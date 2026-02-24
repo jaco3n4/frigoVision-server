@@ -1,4 +1,4 @@
-const { vertexAI } = require("../config/vertexai");
+const { ai } = require("../config/vertexai");
 const { cleanAndParseJSON } = require("../utils/json");
 
 /**
@@ -27,24 +27,19 @@ async function generateCulinaryProfileSummary(req, res) {
       { "summary": "Ta phrase ici." }
     `;
 
-    const model = vertexAI.getGenerativeModel({
+    const result = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-    });
-
-    const result = await model.generateContent({
       contents: [
         { role: "user", parts: [{ text: "Génère le résumé du profil." }] },
       ],
-      generationConfig: {
+      config: {
+        systemInstruction: systemPrompt,
         responseMimeType: "application/json",
         temperature: 0.7,
       },
     });
 
-    return res.json(
-      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
-    );
+    return res.json(cleanAndParseJSON(result.text));
   } catch (error) {
     console.error("❌ Erreur generateCulinaryProfileSummary:", error.message);
     return res.json({

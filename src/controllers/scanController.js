@@ -1,4 +1,4 @@
-const { vertexAI } = require("../config/vertexai");
+const { ai } = require("../config/vertexai");
 const { validateArray } = require("../middleware/validate");
 const { cleanAndParseJSON } = require("../utils/json");
 
@@ -58,11 +58,6 @@ async function analyzeScannedProducts(req, res, next) {
       }
     `;
 
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-    });
-
     const productsText = products
       .map(
         (p, i) =>
@@ -70,7 +65,8 @@ async function analyzeScannedProducts(req, res, next) {
       )
       .join("\n");
 
-    const result = await model.generateContent({
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
@@ -81,15 +77,14 @@ async function analyzeScannedProducts(req, res, next) {
           ],
         },
       ],
-      generationConfig: {
+      config: {
+        systemInstruction: systemPrompt,
         responseMimeType: "application/json",
         temperature: 0.3,
       },
     });
 
-    return res.json(
-      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
-    );
+    return res.json(cleanAndParseJSON(result.text));
   } catch (error) {
     console.error("❌ Erreur analyzeScannedProducts:", error.message);
     next(error);

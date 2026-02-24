@@ -1,4 +1,4 @@
-const { vertexAI } = require("../config/vertexai");
+const { ai } = require("../config/vertexai");
 const { cleanAndParseJSON } = require("../utils/json");
 const { cardsPreviewSchema } = require("../schemas");
 
@@ -41,21 +41,19 @@ async function checkProductCompliance(req, res, next) {
       }
     `;
 
-    const model = vertexAI.getGenerativeModel({
+    const result = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-    });
-
-    const result = await model.generateContent({
       contents: [
         { role: "user", parts: [{ text: `PRODUIT: ${JSON.stringify(productInfo)}` }] },
       ],
-      generationConfig: { responseMimeType: "application/json", temperature: 0 },
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        temperature: 0,
+      },
     });
 
-    return res.json(
-      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
-    );
+    return res.json(cleanAndParseJSON(result.text));
   } catch (error) {
     console.error("❌ Erreur checkProductCompliance:", error.message);
     return res.json({
@@ -91,16 +89,6 @@ async function getProductCookingGuide(req, res) {
     const prot = nutriments?.proteins_100g || "?";
     const macroInfo = `${kcal}kcal, ${prot}g prot`;
 
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: cardsPreviewSchema,
-        maxOutputTokens: 8192,
-        temperature: 0.4,
-      },
-    });
-
     const prompt = `
         Tu es un Chef IA.
         CONTEXTE: Produit="${productName}", Categorie="${categories}".
@@ -117,8 +105,18 @@ async function getProductCookingGuide(req, res) {
            - Titres courts et percutants.
       `;
 
-    const result = await model.generateContent(prompt);
-    const data = JSON.parse(result.response.candidates[0].content.parts[0].text);
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: cardsPreviewSchema,
+        maxOutputTokens: 8192,
+        temperature: 0.4,
+      },
+    });
+
+    const data = JSON.parse(result.text);
     return res.json(data);
   } catch (error) {
     console.error("❌ Erreur getProductCookingGuide:", error.message);

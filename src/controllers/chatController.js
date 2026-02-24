@@ -1,4 +1,4 @@
-const { vertexAI } = require("../config/vertexai");
+const { ai } = require("../config/vertexai");
 const { validateText, validateArray } = require("../middleware/validate");
 
 /**
@@ -26,24 +26,21 @@ RÈGLES DE RÉPONSE (CRITIQUE) :
 4. **Pertinence** : Si la question est hors sujet de la recette, redirige gentiment vers la recette.
 5. **Expertise** : Partage des astuces de chef quand pertinent.`.trim();
 
-    const model = vertexAI.getGenerativeModel({
+    const chat = ai.chats.create({
       model: "gemini-2.5-flash",
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      generationConfig: {
+      config: {
+        systemInstruction: systemPrompt,
         temperature: 0.7,
         maxOutputTokens: 200,
       },
-    });
-
-    const chat = model.startChat({
       history: (history || []).map((h) => ({
         role: h.role === "assistant" ? "model" : "user",
         parts: [{ text: h.content }],
       })),
     });
 
-    const result = await chat.sendMessage(message);
-    const reply = result.response.candidates[0].content.parts[0].text;
+    const result = await chat.sendMessage({ message });
+    const reply = result.text;
 
     return res.json({ reply });
   } catch (error) {

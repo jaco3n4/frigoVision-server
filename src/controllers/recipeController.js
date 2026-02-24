@@ -1,5 +1,4 @@
-const { vertexAI } = require("../config/vertexai");
-const { VertexAI } = require("@google-cloud/vertexai");
+const { ai } = require("../config/vertexai");
 const { cleanAndParseJSON } = require("../utils/json");
 const { validateText, validateArray } = require("../middleware/validate");
 const { shuffleArray } = require("../utils/helpers");
@@ -34,22 +33,21 @@ async function generateRecipesAI(req, res, next) {
       { "recipes": [{ "title", "time", "difficulty", "calories", "ingredients_list", "steps", "chef_tip" }] }
     `;
 
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-    });
-
     const userMessage = `Ingrédients : ${ingredients.join(", ")}`;
     console.log(JSON.stringify({ event: "AI_REQUEST", fn: "generateRecipesAI", systemPrompt, userMessage }));
 
-    const result = await model.generateContent({
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
       contents: [
         { role: "user", parts: [{ text: userMessage }] },
       ],
-      generationConfig: { responseMimeType: "application/json" },
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+      },
     });
 
-    const rawResponse = result.response.candidates[0].content.parts[0].text;
+    const rawResponse = result.text;
     console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "generateRecipesAI", response: rawResponse }));
 
     return res.json(cleanAndParseJSON(rawResponse));
@@ -70,22 +68,21 @@ async function getRecipeDetails(req, res, next) {
     validateArray(ingredients, "Ingrédients");
     const systemPrompt = `Recette étape par étape pour "${dishTitle}". JSON: { "steps": [], "chef_tip": "" }`;
 
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-    });
-
     const userMessage = `Ingrédients dispos: ${ingredients?.join(", ")}`;
     console.log(JSON.stringify({ event: "AI_REQUEST", fn: "getRecipeDetails", systemPrompt, userMessage }));
 
-    const result = await model.generateContent({
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
       contents: [
         { role: "user", parts: [{ text: userMessage }] },
       ],
-      generationConfig: { responseMimeType: "application/json" },
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+      },
     });
 
-    const rawResponse = result.response.candidates[0].content.parts[0].text;
+    const rawResponse = result.text;
     console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "getRecipeDetails", response: rawResponse }));
 
     return res.json(cleanAndParseJSON(rawResponse));
@@ -103,9 +100,11 @@ async function detectIngredientEmoji(req, res) {
   try {
     const { text } = req.body;
     validateText(text, "Texte");
-    const model = vertexAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(`Donne juste l'emoji pour : ${text}`);
-    return res.json({ emoji: result.response.candidates[0].content.parts[0].text.trim() });
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `Donne juste l'emoji pour : ${text}`,
+    });
+    return res.json({ emoji: result.text.trim() });
   } catch (error) {
     return res.json({ emoji: "" });
   }
@@ -185,14 +184,12 @@ Réponds EXACTEMENT dans ce format JSON :
   ]
 }`;
 
-    const localVertexAI = new VertexAI({
-      project: process.env.GCLOUD_PROJECT || "frigovision-71924",
-      location: "europe-west1",
-    });
+    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "suggestRecipesQuick", prompt }));
 
-    const model = localVertexAI.getGenerativeModel({
+    const result = await ai.models.generateContent({
       model: "gemini-2.0-flash-001",
-      generationConfig: {
+      contents: prompt,
+      config: {
         responseMimeType: "application/json",
         responseSchema: quickRecipeSuggestionsSchema,
         maxOutputTokens: 1536,
@@ -200,10 +197,7 @@ Réponds EXACTEMENT dans ce format JSON :
       },
     });
 
-    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "suggestRecipesQuick", prompt }));
-
-    const result = await model.generateContent(prompt);
-    const rawText = result.response.candidates[0].content.parts[0].text;
+    const rawText = result.text;
     console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "suggestRecipesQuick", response: rawText }));
 
     let parsed;
@@ -233,15 +227,6 @@ async function enrichRecipeSuggestions(req, res) {
 
     const ingredientsList = pantryItems?.map((i) => i.name).join(", ") || "";
 
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        maxOutputTokens: 1024,
-        temperature: 0.4,
-      },
-    });
-
     const prompt = `Pour ces 2 recettes, liste les ingrédients utilisés et manquants.
 
 Recette 1: ${suggestions[0].title}
@@ -259,8 +244,17 @@ JSON:
 
     console.log(JSON.stringify({ event: "AI_REQUEST", fn: "enrichRecipeSuggestions", prompt }));
 
-    const result = await model.generateContent(prompt);
-    const rawResponse = result.response.candidates[0].content.parts[0].text;
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        maxOutputTokens: 1024,
+        temperature: 0.4,
+      },
+    });
+
+    const rawResponse = result.text;
     console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "enrichRecipeSuggestions", response: rawResponse }));
     const parsed = JSON.parse(rawResponse);
 
@@ -311,19 +305,19 @@ JSON:
   ]
 }`;
 
-    const model = vertexAI.getGenerativeModel({
+    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "suggestRecipes", prompt }));
+
+    const result = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      generationConfig: {
+      contents: prompt,
+      config: {
         responseMimeType: "application/json",
         maxOutputTokens: 2048,
         temperature: 0.5,
       },
     });
 
-    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "suggestRecipes", prompt }));
-
-    const result = await model.generateContent(prompt);
-    const rawResponse = result.response.candidates[0].content.parts[0].text;
+    const rawResponse = result.text;
     console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "suggestRecipes", response: rawResponse }));
 
     return res.json(cleanAndParseJSON(rawResponse));
@@ -373,9 +367,12 @@ RÈGLES DE GÉNÉRATION :
    - Ne mentionne JAMAIS : people, hands, text, watermark
 9. chef_tip: Un conseil pratique du chef (1-2 phrases max).`;
 
-    const model = vertexAI.getGenerativeModel({
+    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "generateFullRecipe", prompt }));
+
+    const result = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      generationConfig: {
+      contents: prompt,
+      config: {
         responseMimeType: "application/json",
         responseSchema: fullRecipeSchema,
         maxOutputTokens: 4096,
@@ -383,10 +380,7 @@ RÈGLES DE GÉNÉRATION :
       },
     });
 
-    console.log(JSON.stringify({ event: "AI_REQUEST", fn: "generateFullRecipe", prompt }));
-
-    const result = await model.generateContent(prompt);
-    const rawResponse = result.response.candidates[0].content.parts[0].text;
+    const rawResponse = result.text;
     console.log(JSON.stringify({ event: "AI_RESPONSE", fn: "generateFullRecipe", response: rawResponse }));
 
     const parsed = JSON.parse(rawResponse);

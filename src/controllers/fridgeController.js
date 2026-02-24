@@ -1,4 +1,4 @@
-const { vertexAI } = require("../config/vertexai");
+const { ai } = require("../config/vertexai");
 const { validateBase64 } = require("../middleware/validate");
 const { cleanAndParseJSON } = require("../utils/json");
 
@@ -21,14 +21,10 @@ async function analyzeFridgeImage(req, res, next) {
       Format JSON : ["Item1", "Item2"]
     `;
 
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-    });
-
     const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
 
-    const result = await model.generateContent({
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
@@ -38,12 +34,13 @@ async function analyzeFridgeImage(req, res, next) {
           ],
         },
       ],
-      generationConfig: { responseMimeType: "application/json" },
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+      },
     });
 
-    const parsed = cleanAndParseJSON(
-      result.response.candidates[0].content.parts[0].text,
-    );
+    const parsed = cleanAndParseJSON(result.text);
 
     let finalIngredients = Array.isArray(parsed)
       ? parsed

@@ -1,5 +1,4 @@
-const { vertexAI } = require("../config/vertexai");
-const { VertexAI } = require("@google-cloud/vertexai");
+const { aiGlobal: ai } = require("../config/vertexai");
 const { pubsub } = require("../config/pubsub");
 const { db, admin } = require("../config/firebase");
 const { cleanAndParseJSON } = require("../utils/json");
@@ -150,18 +149,15 @@ Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement 
   };
 
   try {
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: weeklyMealsSchema,
-        maxOutputTokens: 4096,
-        temperature: 0.8,
-      },
-    });
+    const modelConfig = {
+      responseMimeType: "application/json",
+      responseSchema: weeklyMealsSchema,
+      maxOutputTokens: 4096,
+      temperature: 0.8,
+    };
 
     const parseMeals = (result, label) => {
-      const candidate = result.response.candidates?.[0];
+      const candidate = result.candidates?.[0];
       if (!candidate) {
         console.error(`⚠️ ${label} — Aucun candidate retourné`);
         return [];
@@ -170,7 +166,7 @@ Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement 
       if (finishReason && finishReason !== "STOP") {
         console.warn(`⚠️ ${label} — finishReason: ${finishReason}`);
       }
-      const raw = candidate.content?.parts?.[0]?.text;
+      const raw = result.text;
       if (!raw) {
         console.error(`⚠️ ${label} — Pas de texte dans la réponse`);
         return [];
@@ -226,9 +222,12 @@ Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement 
       }),
     );
     const t1 = Date.now();
-    const result1 = await model.generateContent(prompt1);
-    const raw1 =
-      result1.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const result1 = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt1,
+      config: modelConfig,
+    });
+    const raw1 = result1.text || "";
     const meals1 = parseMeals(result1, "CALL 1 (Lun-Mer)");
     console.log(
       JSON.stringify({
@@ -268,9 +267,12 @@ Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement 
       }),
     );
     const t2 = Date.now();
-    const result2 = await model.generateContent(prompt2);
-    const raw2 =
-      result2.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const result2 = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt2,
+      config: modelConfig,
+    });
+    const raw2 = result2.text || "";
     const meals2 = parseMeals(result2, "CALL 2 (Jeu-Dim)");
     console.log(
       JSON.stringify({
@@ -347,17 +349,6 @@ async function streamWeeklyPlan(req, res) {
     }
     await planDocRef.set({ ...emptyPlan, isGenerating: true });
 
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: weeklySkeletonSchema,
-        maxOutputTokens: 8192,
-        temperature: 0.9,
-        thinkingConfig: { thinkingLevel: "MEDIUM" },
-      },
-    });
-
     const prompt = `Tu es un chef nutritionniste créatif et ingénieux. Tu conçois des menus exceptionnels.
 ${profileSection}${equipmentConstraint}
 === INVENTAIRE FRIGO (pour contexte — les ingrédients seront calculés séparément) ===
@@ -385,16 +376,23 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
       JSON.stringify({ event: "AI_REQUEST", fn: "streamWeeklyPlan", prompt }),
     );
 
-    const streamResult = await model.generateContentStream(prompt);
+    const stream = await ai.models.generateContentStream({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: weeklySkeletonSchema,
+        maxOutputTokens: 8192,
+        temperature: 0.9,
+        thinkingConfig: { thinkingLevel: "medium" },
+      },
+    });
     let fullText = "";
 
-    for await (const chunk of streamResult.stream) {
-      const parts = chunk.candidates?.[0]?.content?.parts || [];
-      for (const part of parts) {
-        if (!part.thought && part.text) {
-          fullText += part.text;
-          res.write(`data: ${JSON.stringify({ chunk: part.text })}\n\n`);
-        }
+    for await (const chunk of stream) {
+      if (chunk.text) {
+        fullText += chunk.text;
+        res.write(`data: ${JSON.stringify({ chunk: chunk.text })}\n\n`);
       }
     }
 
@@ -547,18 +545,17 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
 8. Pour "slot" utilise : lunch ou dinner.`;
 
   try {
-    const model = vertexAI.getGenerativeModel({
+    const result = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      generationConfig: {
+      contents: skeletonPrompt,
+      config: {
         responseMimeType: "application/json",
         responseSchema: weeklySkeletonSchema,
         maxOutputTokens: 8192,
         temperature: 0.9,
       },
     });
-
-    const result = await model.generateContent(skeletonPrompt);
-    const raw = result.response.candidates?.[0]?.content?.parts?.[0]?.text;
+    const raw = result.text;
     if (!raw) throw new Error("Gemini n'a retourné aucun contenu");
 
     let meals;
@@ -676,16 +673,13 @@ async function processMealIngredients(req, res) {
   try {
     const kcalPerMeal = Math.round((kcalTarget || 2000) / 2);
 
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: weeklyMealsSchema,
-        maxOutputTokens: 8192,
-        temperature: 0.2,
-        thinkingConfig: { thinkingLevel: "LOW" },
-      },
-    });
+    const ingredientModelConfig = {
+      responseMimeType: "application/json",
+      responseSchema: weeklyMealsSchema,
+      maxOutputTokens: 8192,
+      temperature: 0.2,
+      thinkingConfig: { thinkingLevel: "low" },
+    };
 
     const buildIngredientPrompt = (skeletonMeals, inv) => {
       const inventoryStr = buildInventoryString(inv);
@@ -773,18 +767,20 @@ Chaque ingrédient est un OBJET avec 4 champs :
     );
 
     const [result1, result2] = await Promise.all([
-      model.generateContent(ingredientPrompt1),
-      model.generateContent(ingredientPrompt2),
+      ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: ingredientPrompt1,
+        config: ingredientModelConfig,
+      }),
+      ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: ingredientPrompt2,
+        config: ingredientModelConfig,
+      }),
     ]);
 
-    const rawIngredients1 =
-      result1.response.candidates?.[0]?.content?.parts?.find(
-        (p) => !p.thought && p.text,
-      )?.text || "";
-    const rawIngredients2 =
-      result2.response.candidates?.[0]?.content?.parts?.find(
-        (p) => !p.thought && p.text,
-      )?.text || "";
+    const rawIngredients1 = result1.text || "";
+    const rawIngredients2 = result2.text || "";
     console.log(
       JSON.stringify({
         event: "AI_RESPONSE",
@@ -803,9 +799,7 @@ Chaque ingrédient est un OBJET avec 4 champs :
     );
 
     const parseParts = (result, label) => {
-      const parts = result.response.candidates?.[0]?.content?.parts || [];
-      const contentPart = parts.find((p) => !p.thought && p.text);
-      const raw = contentPart?.text;
+      const raw = result.text;
       if (!raw) {
         console.error(`❌ ${label} : aucun contenu`);
         return [];
@@ -1085,16 +1079,6 @@ Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équil
    - "unit" : STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.`;
 
   try {
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: singleMealSchema,
-        maxOutputTokens: 2048,
-        temperature: 0.9,
-      },
-    });
-
     console.log(
       JSON.stringify({
         event: "AI_REQUEST",
@@ -1103,8 +1087,17 @@ Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équil
       }),
     );
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.candidates[0].content.parts[0].text;
+    const result = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: singleMealSchema,
+        maxOutputTokens: 2048,
+        temperature: 0.9,
+      },
+    });
+    const text = result.text;
     console.log(
       JSON.stringify({
         event: "AI_RESPONSE",

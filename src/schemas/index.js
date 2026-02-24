@@ -1,30 +1,28 @@
-const { SchemaType } = require("../config/vertexai");
-
 // Unités autorisées pour les ingrédients
 const ALLOWED_UNITS = ["kg", "g", "l", "cl", "ml", "piece"];
 
 // --- Schema : Repas avec ingrédients ---
 const weeklyMealsSchema = {
-  type: SchemaType.OBJECT,
+  type: "OBJECT",
   properties: {
     meals: {
-      type: SchemaType.ARRAY,
+      type: "ARRAY",
       items: {
-        type: SchemaType.OBJECT,
+        type: "OBJECT",
         properties: {
-          day: { type: SchemaType.STRING },
-          slot: { type: SchemaType.STRING },
-          title: { type: SchemaType.STRING },
-          calories: { type: SchemaType.INTEGER },
+          day: { type: "STRING" },
+          slot: { type: "STRING" },
+          title: { type: "STRING" },
+          calories: { type: "INTEGER" },
           ingredients: {
-            type: SchemaType.ARRAY,
+            type: "ARRAY",
             items: {
-              type: SchemaType.OBJECT,
+              type: "OBJECT",
               properties: {
-                ingredient_id: { type: SchemaType.STRING },
-                name: { type: SchemaType.STRING },
-                quantity: { type: SchemaType.NUMBER },
-                unit: { type: SchemaType.STRING, enum: ALLOWED_UNITS },
+                ingredient_id: { type: "STRING" },
+                name: { type: "STRING" },
+                quantity: { type: "NUMBER" },
+                unit: { type: "STRING", enum: ALLOWED_UNITS },
               },
               required: ["ingredient_id", "name", "quantity", "unit"],
             },
@@ -39,18 +37,18 @@ const weeklyMealsSchema = {
 
 // --- Schema : Skeleton (titres + descriptions, PAS d'ingredients) ---
 const weeklySkeletonSchema = {
-  type: SchemaType.OBJECT,
+  type: "OBJECT",
   properties: {
     meals: {
-      type: SchemaType.ARRAY,
+      type: "ARRAY",
       items: {
-        type: SchemaType.OBJECT,
+        type: "OBJECT",
         properties: {
-          day: { type: SchemaType.STRING },
-          slot: { type: SchemaType.STRING },
-          title: { type: SchemaType.STRING },
-          description: { type: SchemaType.STRING },
-          calories: { type: SchemaType.INTEGER },
+          day: { type: "STRING" },
+          slot: { type: "STRING" },
+          title: { type: "STRING" },
+          description: { type: "STRING" },
+          calories: { type: "INTEGER" },
         },
         required: ["day", "slot", "title", "description", "calories"],
       },
@@ -61,26 +59,26 @@ const weeklySkeletonSchema = {
 
 // --- Schema : Single meal ---
 const singleMealSchema = {
-  type: SchemaType.OBJECT,
+  type: "OBJECT",
   properties: {
     meal: {
-      type: SchemaType.OBJECT,
+      type: "OBJECT",
       properties: {
-        title: { type: SchemaType.STRING },
-        description: { type: SchemaType.STRING },
-        calories: { type: SchemaType.INTEGER },
-        protein: { type: SchemaType.INTEGER },
-        carbs: { type: SchemaType.INTEGER },
-        fat: { type: SchemaType.INTEGER },
+        title: { type: "STRING" },
+        description: { type: "STRING" },
+        calories: { type: "INTEGER" },
+        protein: { type: "INTEGER" },
+        carbs: { type: "INTEGER" },
+        fat: { type: "INTEGER" },
         ingredients: {
-          type: SchemaType.ARRAY,
+          type: "ARRAY",
           items: {
-            type: SchemaType.OBJECT,
+            type: "OBJECT",
             properties: {
-              ingredient_id: { type: SchemaType.STRING },
-              name: { type: SchemaType.STRING },
-              quantity: { type: SchemaType.NUMBER },
-              unit: { type: SchemaType.STRING, enum: ALLOWED_UNITS },
+              ingredient_id: { type: "STRING" },
+              name: { type: "STRING" },
+              quantity: { type: "NUMBER" },
+              unit: { type: "STRING", enum: ALLOWED_UNITS },
             },
             required: ["ingredient_id", "name", "quantity", "unit"],
           },
@@ -94,29 +92,29 @@ const singleMealSchema = {
 
 // --- Schema : Quick recipe suggestions ---
 const quickRecipeSuggestionsSchema = {
-  type: SchemaType.OBJECT,
+  type: "OBJECT",
   properties: {
     suggestions: {
-      type: SchemaType.ARRAY,
+      type: "ARRAY",
       items: {
-        type: SchemaType.OBJECT,
+        type: "OBJECT",
         properties: {
-          id: { type: SchemaType.STRING },
-          type: { type: SchemaType.STRING },
-          title: { type: SchemaType.STRING },
-          subtitle: { type: SchemaType.STRING },
-          calories: { type: SchemaType.STRING },
-          time: { type: SchemaType.STRING },
-          match_score: { type: SchemaType.INTEGER },
+          id: { type: "STRING" },
+          type: { type: "STRING" },
+          title: { type: "STRING" },
+          subtitle: { type: "STRING" },
+          calories: { type: "STRING" },
+          time: { type: "STRING" },
+          match_score: { type: "INTEGER" },
           used_ingredients: {
-            type: SchemaType.ARRAY,
-            items: { type: SchemaType.STRING },
+            type: "ARRAY",
+            items: { type: "STRING" },
           },
           missing_ingredients: {
-            type: SchemaType.ARRAY,
-            items: { type: SchemaType.STRING },
+            type: "ARRAY",
+            items: { type: "STRING" },
           },
-          upgrade_reason: { type: SchemaType.STRING },
+          upgrade_reason: { type: "STRING" },
         },
         required: [
           "type", "title", "subtitle", "calories", "time",
@@ -130,27 +128,27 @@ const quickRecipeSuggestionsSchema = {
 
 // --- Schema : Full recipe suggestions (legacy) ---
 const recipeSuggestionsSchema = {
-  type: SchemaType.OBJECT,
+  type: "OBJECT",
   properties: {
     suggestions: {
-      type: SchemaType.ARRAY,
+      type: "ARRAY",
       items: {
-        type: SchemaType.OBJECT,
+        type: "OBJECT",
         properties: {
-          id: { type: SchemaType.STRING },
-          type: { type: SchemaType.STRING, description: "IMMEDIATE ou OBJECTIVE" },
-          title: { type: SchemaType.STRING },
-          subtitle: { type: SchemaType.STRING },
-          calories: { type: SchemaType.STRING },
-          time: { type: SchemaType.STRING },
-          match_score: { type: SchemaType.INTEGER },
+          id: { type: "STRING" },
+          type: { type: "STRING", description: "IMMEDIATE ou OBJECTIVE" },
+          title: { type: "STRING" },
+          subtitle: { type: "STRING" },
+          calories: { type: "STRING" },
+          time: { type: "STRING" },
+          match_score: { type: "INTEGER" },
           used_ingredients: {
-            type: SchemaType.ARRAY,
-            items: { type: SchemaType.STRING },
+            type: "ARRAY",
+            items: { type: "STRING" },
           },
           missing_ingredients: {
-            type: SchemaType.ARRAY,
-            items: { type: SchemaType.STRING },
+            type: "ARRAY",
+            items: { type: "STRING" },
           },
         },
         required: [
@@ -165,34 +163,34 @@ const recipeSuggestionsSchema = {
 
 // --- Schema : Full recipe ---
 const fullRecipeSchema = {
-  type: SchemaType.OBJECT,
+  type: "OBJECT",
   properties: {
-    title: { type: SchemaType.STRING },
-    description: { type: SchemaType.STRING },
-    prep_time: { type: SchemaType.STRING },
-    cook_time: { type: SchemaType.STRING },
-    servings: { type: SchemaType.INTEGER },
-    difficulty: { type: SchemaType.STRING },
-    calories_per_serving: { type: SchemaType.INTEGER },
+    title: { type: "STRING" },
+    description: { type: "STRING" },
+    prep_time: { type: "STRING" },
+    cook_time: { type: "STRING" },
+    servings: { type: "INTEGER" },
+    difficulty: { type: "STRING" },
+    calories_per_serving: { type: "INTEGER" },
     ingredients: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING },
+      type: "ARRAY",
+      items: { type: "STRING" },
     },
     steps: {
-      type: SchemaType.ARRAY,
+      type: "ARRAY",
       items: {
-        type: SchemaType.OBJECT,
+        type: "OBJECT",
         properties: {
-          step_number: { type: SchemaType.INTEGER },
-          instruction: { type: SchemaType.STRING },
-          timer_seconds: { type: SchemaType.INTEGER, nullable: true },
+          step_number: { type: "INTEGER" },
+          instruction: { type: "STRING" },
+          timer_seconds: { type: "INTEGER", nullable: true },
         },
         required: ["step_number", "instruction"],
       },
     },
-    chef_tip: { type: SchemaType.STRING },
+    chef_tip: { type: "STRING" },
     image_prompt: {
-      type: SchemaType.STRING,
+      type: "STRING",
       description: "Prompt en ANGLAIS pour générer la photo via FAL.AI",
     },
   },
@@ -201,43 +199,43 @@ const fullRecipeSchema = {
 
 // --- Schema : Product cooking guide cards ---
 const cardsPreviewSchema = {
-  type: SchemaType.OBJECT,
+  type: "OBJECT",
   properties: {
-    product_vibe: { type: SchemaType.STRING },
+    product_vibe: { type: "STRING" },
     cooking_info: {
-      type: SchemaType.OBJECT,
+      type: "OBJECT",
       properties: {
-        method: { type: SchemaType.STRING },
-        time: { type: SchemaType.STRING },
-        details: { type: SchemaType.STRING },
+        method: { type: "STRING" },
+        time: { type: "STRING" },
+        details: { type: "STRING" },
       },
       required: ["method", "time", "details"],
     },
     cards: {
-      type: SchemaType.OBJECT,
+      type: "OBJECT",
       properties: {
         immediate: {
-          type: SchemaType.OBJECT,
+          type: "OBJECT",
           properties: {
-            title: { type: SchemaType.STRING },
-            subtitle: { type: SchemaType.STRING },
-            time: { type: SchemaType.STRING },
-            calories: { type: SchemaType.STRING },
-            badge: { type: SchemaType.STRING },
-            equipment_used: { type: SchemaType.STRING },
+            title: { type: "STRING" },
+            subtitle: { type: "STRING" },
+            time: { type: "STRING" },
+            calories: { type: "STRING" },
+            badge: { type: "STRING" },
+            equipment_used: { type: "STRING" },
           },
           required: ["title", "subtitle", "time", "calories", "badge", "equipment_used"],
         },
         objective: {
-          type: SchemaType.OBJECT,
+          type: "OBJECT",
           properties: {
-            title: { type: SchemaType.STRING },
-            subtitle: { type: SchemaType.STRING },
-            macros: { type: SchemaType.STRING },
-            calories: { type: SchemaType.STRING },
-            badge: { type: SchemaType.STRING },
-            missing_ingredient: { type: SchemaType.STRING },
-            equipment_used: { type: SchemaType.STRING },
+            title: { type: "STRING" },
+            subtitle: { type: "STRING" },
+            macros: { type: "STRING" },
+            calories: { type: "STRING" },
+            badge: { type: "STRING" },
+            missing_ingredient: { type: "STRING" },
+            equipment_used: { type: "STRING" },
           },
           required: ["title", "subtitle", "macros", "calories", "badge", "missing_ingredient", "equipment_used"],
         },

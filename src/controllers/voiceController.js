@@ -1,4 +1,4 @@
-const { vertexAI } = require("../config/vertexai");
+const { ai } = require("../config/vertexai");
 const { validateBase64 } = require("../middleware/validate");
 const { cleanAndParseJSON } = require("../utils/json");
 
@@ -60,12 +60,8 @@ async function analyzeVoiceList(req, res, next) {
       }
     `;
 
-    const model = vertexAI.getGenerativeModel({
+    const result = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-    });
-
-    const result = await model.generateContent({
       contents: [
         {
           role: "user",
@@ -75,12 +71,13 @@ async function analyzeVoiceList(req, res, next) {
           ],
         },
       ],
-      generationConfig: { responseMimeType: "application/json" },
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+      },
     });
 
-    return res.json(
-      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
-    );
+    return res.json(cleanAndParseJSON(result.text));
   } catch (error) {
     console.error("❌ Erreur analyzeVoiceList:", error.message);
     next(error);

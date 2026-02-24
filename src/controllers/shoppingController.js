@@ -1,4 +1,4 @@
-const { vertexAI } = require("../config/vertexai");
+const { ai } = require("../config/vertexai");
 const { cleanAndParseJSON } = require("../utils/json");
 
 /**
@@ -29,24 +29,19 @@ async function classifyShoppingItem(req, res, next) {
       - "Sucre" -> {"name": "Sucre", "amount": null, "unit": null, "emoji": "🧂"}
     `;
 
-    const model = vertexAI.getGenerativeModel({
+    const result = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-    });
-
-    const result = await model.generateContent({
       contents: [
         { role: "user", parts: [{ text: `Analyse : "${itemName}"` }] },
       ],
-      generationConfig: {
+      config: {
+        systemInstruction: systemPrompt,
         responseMimeType: "application/json",
         temperature: 0,
       },
     });
 
-    return res.json(
-      cleanAndParseJSON(result.response.candidates[0].content.parts[0].text),
-    );
+    return res.json(cleanAndParseJSON(result.text));
   } catch (error) {
     console.error("❌ Erreur classifyShoppingItem:", error.message);
     return res.json({ name: req.body.itemName || "Inconnu", amount: null, unit: null, emoji: "🛒" });

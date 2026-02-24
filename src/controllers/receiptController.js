@@ -1,4 +1,4 @@
-const { vertexAI } = require("../config/vertexai");
+const { ai } = require("../config/vertexai");
 const { validateBase64 } = require("../middleware/validate");
 const { cleanAndParseJSON } = require("../utils/json");
 
@@ -55,14 +55,10 @@ async function analyzeReceiptImage(req, res, next) {
       - Si le ticket est illisible, retourne products: []
     `;
 
-    const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-    });
-
     const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
 
-    const result = await model.generateContent({
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: "user",
@@ -72,15 +68,14 @@ async function analyzeReceiptImage(req, res, next) {
           ],
         },
       ],
-      generationConfig: {
+      config: {
+        systemInstruction: systemPrompt,
         responseMimeType: "application/json",
         temperature: 0.2,
       },
     });
 
-    const parsed = cleanAndParseJSON(
-      result.response.candidates[0].content.parts[0].text,
-    );
+    const parsed = cleanAndParseJSON(result.text);
 
     if (!parsed.products || !Array.isArray(parsed.products)) {
       return res.json({
