@@ -1,14 +1,21 @@
 const DIET_MAP = {
+  omni: "Omnivore (mange de tout)",
   halal: "Halal (pas de porc, pas d'alcool en cuisson)",
-  vegetarien: "Végétarien (pas de viande ni poisson)",
+  vege: "Végétarien (pas de viande ni poisson)",
   vegan: "Végan (aucun produit animal)",
 };
 
 const ALLERGY_MAP = {
   gluten: "Gluten",
   lactose: "Lactose",
-  arachide: "Arachides/Fruits à coque",
+  arachide: "Arachides",
   fruitsmer: "Fruits de mer/Crustacés",
+  oeufs: "Œufs",
+  soja: "Soja",
+  sesame: "Sésame",
+  fruitsacoque: "Fruits à coque",
+  celeri: "Céleri",
+  moutarde: "Moutarde",
 };
 
 const EQUIPMENT_NAMES = {

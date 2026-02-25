@@ -4,6 +4,7 @@ const { validateText, validateArray } = require("../middleware/validate");
 const { shuffleArray } = require("../utils/helpers");
 const { DIET_MAP, ALLERGY_MAP, EQUIPMENT_NAMES } = require("../utils/constants");
 const { quickRecipeSuggestionsSchema, fullRecipeSchema } = require("../schemas");
+const { readUserProfile, buildProfileSection, buildEquipmentConstraint } = require("../utils/profile");
 
 // =====================================================================
 // generateRecipesAI
@@ -11,8 +12,13 @@ const { quickRecipeSuggestionsSchema, fullRecipeSchema } = require("../schemas")
 
 async function generateRecipesAI(req, res, next) {
   try {
-    const { ingredients, diet, mood, nutrition } = req.body;
+    const { ingredients, mood, nutrition } = req.body;
     validateArray(ingredients, "Ingrédients");
+
+    // Lire le profil complet depuis Firestore
+    const { culinary, equipment } = await readUserProfile(req.user.uid);
+    const { profileSection } = buildProfileSection(culinary, culinary.diet, equipment);
+    const equipmentConstraint = buildEquipmentConstraint(equipment);
 
     let nutritionPrompt = "";
     if (nutrition) {
@@ -25,10 +31,9 @@ async function generateRecipesAI(req, res, next) {
       Crée 2 recettes avec STRICTEMENT les ingrédients fournis + Fonds de placard (Sel, Poivre, Huile, Vinaigre, Eau).
 
       CONTRAINTES :
-      - Régime : ${diet}
       - Ambiance : ${mood}
       ${nutritionPrompt}
-
+      ${profileSection}${equipmentConstraint}
       Structure JSON attendue :
       { "recipes": [{ "title", "time", "difficulty", "calories", "ingredients_list", "steps", "chef_tip" }] }
     `;
@@ -282,15 +287,19 @@ JSON:
 
 async function suggestRecipes(req, res, next) {
   try {
-    const { userProfile, pantryItems } = req.body;
+    const { pantryItems } = req.body;
     validateArray(pantryItems, "Pantry items");
 
+    // Lire le profil complet depuis Firestore
+    const { culinary, equipment } = await readUserProfile(req.user.uid);
+    const { profileSection } = buildProfileSection(culinary, culinary.diet, equipment);
+    const equipmentConstraint = buildEquipmentConstraint(equipment);
+    const goal = culinary.goal || "Manger sainement";
+
     const ingredientsList = pantryItems?.map((i) => i.name).join(", ") || "Rien (Fonds de placard seulement)";
-    const diet = userProfile?.diet || "Équilibré";
-    const goal = userProfile?.context || "Manger sainement";
 
     const prompt = `2 recettes rapides basées sur: ${ingredientsList}
-
+${profileSection}${equipmentConstraint}
 Règles:
 - Recette 1 (IMMEDIATE): 100% dispo, rapide
 - Recette 2 (OBJECTIVE): DOIT avoir 1-2 ingrédients manquants, ${goal}
@@ -333,15 +342,19 @@ JSON:
 
 async function generateFullRecipe(req, res, next) {
   try {
-    const { selectedRecipeTitle, pantryItems, userProfile, missingIngredients } = req.body;
+    const { selectedRecipeTitle, pantryItems, missingIngredients } = req.body;
     validateText(selectedRecipeTitle, "Titre recette");
     validateArray(pantryItems, "Pantry items");
     validateArray(missingIngredients, "Ingrédients manquants");
 
+    // Lire le profil complet depuis Firestore
+    const { culinary, equipment } = await readUserProfile(req.user.uid);
+    const { profileSection } = buildProfileSection(culinary, culinary.diet, equipment);
+    const equipmentConstraint = buildEquipmentConstraint(equipment);
+
     const inventoryWithQty = (pantryItems || [])
       .map((i) => (i.quantity ? `${i.name} (${i.quantity})` : i.name))
       .join(", ");
-    const basicContext = `Frigo: ${inventoryWithQty}. Diet: ${userProfile?.diet}.`;
     const shoppingList = missingIngredients?.length > 0
       ? `Ingrédients à acheter: ${missingIngredients.join(", ")}`
       : "Aucun achat nécessaire.";
@@ -350,9 +363,9 @@ async function generateFullRecipe(req, res, next) {
 Recette choisie : "${selectedRecipeTitle}".
 Génère le guide complet de préparation.
 
-CONTEXTE: ${basicContext}
+CONTEXTE: Frigo: ${inventoryWithQty}.
 ${shoppingList}
-
+${profileSection}${equipmentConstraint}
 RÈGLES DE GÉNÉRATION :
 1. UNITÉS DES INGRÉDIENTS (CRUCIAL) : Pour chaque ingrédient du frigo, utilise EXACTEMENT la même unité.
 2. NOMS GÉNÉRIQUES : SANS qualifier alimentaire (halal, casher, bio, vegan, fermier…). Ex: "Escalope de poulet", JAMAIS "Escalope de poulet halal".

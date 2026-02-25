@@ -145,7 +145,8 @@ Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement 
    - "ingredient_id" : pour les ingrédients du FRIGO qui ont un [ID:xxx], RECOPIE cet ID exactement. Pour les ingrédients à ACHETER (pas dans le frigo), mets "".
    - "name" : nom de l'ingrédient (ex: "Poulet", "Feta").
    - "quantity" : nombre (ex: 150, 2, 0.5). Jamais 0.
-   - "unit" : unité STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.`;
+   - "unit" : unité STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.
+8. VIGILANCE ALLERGIES (SÉCURITÉ ABSOLUE) : Si le profil indique des allergies, tu as l'INTERDICTION d'utiliser des produits transformés, de boulangerie ou des sauces classiques qui contiennent traditionnellement cet allergène en ingrédient caché (ex: si allergie aux œufs = pas de pain brioché, pas de béchamel, pas de mayonnaise, pas de pâtes fraîches ; si allergie au lait = pas de beurre, pas de crème). Privilégie des associations 100% brutes et sûres.`;
   };
 
   try {
@@ -371,7 +372,8 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
 5. VARIÉTÉ ABSOLUE : chaque repas doit avoir une protéine, une technique de cuisson et un style culinaire différents.
 6. Alterne les cuisines du monde : française, italienne, asiatique, méditerranéenne, mexicaine, indienne, etc.
 7. Pour "day" utilise : monday, tuesday, wednesday, thursday, friday, saturday, sunday.
-8. Pour "slot" utilise : lunch ou dinner.`;
+8. Pour "slot" utilise : lunch ou dinner.
+9. VIGILANCE ALLERGIES (SÉCURITÉ ABSOLUE) : Si le profil indique des allergies, tu as l'INTERDICTION d'utiliser des produits transformés, de boulangerie ou des sauces classiques qui contiennent traditionnellement cet allergène en ingrédient caché (ex: si allergie aux œufs = pas de pain brioché, pas de béchamel, pas de mayonnaise, pas de pâtes fraîches ; si allergie au lait = pas de beurre, pas de crème). Privilégie des associations 100% brutes et sûres.`;
 
     console.log(
       JSON.stringify({ event: "AI_REQUEST", fn: "streamWeeklyPlan", prompt }),
@@ -543,7 +545,8 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
 5. VARIÉTÉ ABSOLUE : chaque repas doit avoir une protéine, une technique de cuisson et un style culinaire différents.
 6. Alterne les cuisines du monde.
 7. Pour "day" utilise : monday, tuesday, wednesday, thursday, friday, saturday, sunday.
-8. Pour "slot" utilise : lunch ou dinner.`;
+8. Pour "slot" utilise : lunch ou dinner.
+9. VIGILANCE ALLERGIES (SÉCURITÉ ABSOLUE) : Si le profil indique des allergies, tu as l'INTERDICTION d'utiliser des produits transformés, de boulangerie ou des sauces classiques qui contiennent traditionnellement cet allergène en ingrédient caché (ex: si allergie aux œufs = pas de pain brioché, pas de béchamel, pas de mayonnaise, pas de pâtes fraîches ; si allergie au lait = pas de beurre, pas de crème). Privilégie des associations 100% brutes et sûres.`;
 
   try {
     const result = await ai.models.generateContent({
@@ -1078,7 +1081,8 @@ Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équil
 4. COHÉRENCE CALORIQUE : Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement la taille d'un plat léger (ex: pas d'omelette géante). Tu DOIS imaginer des accompagnements denses en énergie (fromage, pain, riz, avocat, oléagineux) et les inclure obligatoirement dans la description.
 5. FORMAT INGRÉDIENTS — chaque ingrédient est un OBJET avec 4 champs :
    - "ingredient_id", "name", "quantity", "unit".
-   - "unit" : STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.`;
+   - "unit" : STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.
+6. VIGILANCE ALLERGIES (SÉCURITÉ ABSOLUE) : Si le profil indique des allergies, tu as l'INTERDICTION d'utiliser des produits transformés, de boulangerie ou des sauces classiques qui contiennent traditionnellement cet allergène en ingrédient caché (ex: si allergie aux œufs = pas de pain brioché, pas de béchamel, pas de mayonnaise, pas de pâtes fraîches ; si allergie au lait = pas de beurre, pas de crème). Privilégie des associations 100% brutes et sûres.`;
 
   try {
     console.log(
