@@ -154,6 +154,7 @@ Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement 
       responseSchema: weeklyMealsSchema,
       maxOutputTokens: 4096,
       temperature: 0.8,
+      thinkingConfig: { thinkingBudget: 1024 },
     };
 
     const parseMeals = (result, label) => {
@@ -384,6 +385,7 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
         responseSchema: weeklySkeletonSchema,
         maxOutputTokens: 8192,
         temperature: 0.9,
+        thinkingConfig: { thinkingBudget: 1024 },
       },
     });
     let fullText = "";
@@ -552,6 +554,7 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
         responseSchema: weeklySkeletonSchema,
         maxOutputTokens: 8192,
         temperature: 0.9,
+        thinkingConfig: { thinkingBudget: 1024 },
       },
     });
     const raw = result.text;
@@ -677,6 +680,7 @@ async function processMealIngredients(req, res) {
       responseSchema: weeklyMealsSchema,
       maxOutputTokens: 8192,
       temperature: 0.2,
+      thinkingConfig: { thinkingBudget: 0 },
     };
 
     const buildIngredientPrompt = (skeletonMeals, inv) => {
@@ -1093,6 +1097,7 @@ Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équil
         responseSchema: singleMealSchema,
         maxOutputTokens: 2048,
         temperature: 0.9,
+        thinkingConfig: { thinkingBudget: 1024 },
       },
     });
     const text = result.text;
