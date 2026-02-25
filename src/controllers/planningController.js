@@ -309,9 +309,10 @@ async function streamWeeklyPlan(req, res) {
 
   // Auth déjà gérée par le middleware requireAuth
   const uid = req.user.uid;
-  const { diet, calories, nutrition, mood } = req.body;
+  const { diet, calories, nutrition, mood, servings, lockedMeals } = req.body;
+  const numServings = Number(servings) || 2;
   const t0 = Date.now();
-  console.log("🟢 streamWeeklyPlan SSE START — uid:", uid, "diet:", diet);
+  console.log("🟢 streamWeeklyPlan SSE START — uid:", uid, "diet:", diet, "servings:", numServings);
 
   // SSE headers
   res.set({
@@ -351,23 +352,33 @@ async function streamWeeklyPlan(req, res) {
     }
     await planDocRef.set({ ...emptyPlan, isGenerating: true });
 
+    // Construire la section plats verrouilles
+    const lockedSection = Array.isArray(lockedMeals) && lockedMeals.length > 0
+      ? `\n=== REPAS VERROUILLÉS (NE PAS REMPLACER) ===\n${lockedMeals.map((m) => `- ${m.day} ${m.slot}: ${m.title} (${m.description || ""})`).join("\n")}\nTu DOIS conserver ces repas tels quels. Ne génère QUE les repas non verrouillés.\n`
+      : "";
+    const numMealsToGenerate = 14 - (Array.isArray(lockedMeals) ? lockedMeals.length : 0);
+
     const prompt = `Tu es un chef nutritionniste créatif et ingénieux. Tu conçois des menus exceptionnels.
 ${profileSection}${equipmentConstraint}
+=== NOMBRE DE CONVIVES ===
+Adapte les quantités pour ${numServings} personne${numServings > 1 ? "s" : ""}.
+Les calories ci-dessous sont PAR PERSONNE.
+
 === INVENTAIRE FRIGO (pour contexte — les ingrédients seront calculés séparément) ===
 ${inventoryStr}
 
 === RÈGLE ANTI-GASPI ===
-Tu DOIS concevoir tes 14 repas de manière à utiliser au moins 80% des ingrédients listés dans le frigo au moins une fois dans la semaine.
-
+Tu DOIS concevoir tes repas de manière à utiliser au moins 80% des ingrédients listés dans le frigo au moins une fois dans la semaine.
+${lockedSection}
 === MISSION ===
-Conçois un menu de 14 repas pour la semaine (Lundi-Dimanche, Midi et Soir).
-Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équilibré"}.
+Conçois un menu de ${numMealsToGenerate} repas pour la semaine (Lundi-Dimanche, Midi et Soir).
+Cible stricte : ~${kcalPerMeal} kcal PAR REPAS PAR PERSONNE. Régime : ${dietLabel || "Équilibré"}.
 NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
 
 === RÈGLES ===
 1. Titre court et appétissant (2-4 mots max).
 2. Description : 1 phrase évocatrice et gourmande (max 15 mots).
-3. Calories estimées par repas (~${kcalPerMeal} kcal).
+3. Calories estimées par repas PAR PERSONNE (~${kcalPerMeal} kcal).
 4. COHÉRENCE CALORIQUE : Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement la taille d'un plat léger (ex: pas d'omelette géante). Tu DOIS imaginer des accompagnements denses en énergie (fromage, pain, riz, avocat, oléagineux) et les inclure obligatoirement dans la description.
 5. VARIÉTÉ ABSOLUE : chaque repas doit avoir une protéine, une technique de cuisson et un style culinaire différents.
 6. Alterne les cuisines du monde : française, italienne, asiatique, méditerranéenne, mexicaine, indienne, etc.
@@ -469,6 +480,7 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
         dietLabel,
         kcalTarget: Number(kcalTarget),
         equipmentConstraint,
+        servings: numServings,
       };
       await pubsub
         .topic("process-meal-ingredients")
@@ -665,7 +677,9 @@ async function processMealIngredients(req, res) {
     dietLabel,
     kcalTarget,
     equipmentConstraint,
+    servings: payloadServings,
   } = payload;
+  const numServings = Number(payloadServings) || 2;
   const t0 = Date.now();
   const planDocRef = db.doc(`users/${uid}/planning/current_week`);
   console.log(
@@ -697,6 +711,9 @@ async function processMealIngredients(req, res) {
 
       return `Tu es un chef nutritionniste.
 ${profileSection}${equipmentConstraint || ""}
+=== NOMBRE DE CONVIVES ===
+Adapte les quantités d'ingrédients pour ${numServings} personne${numServings > 1 ? "s" : ""}.
+
 === PLACARD DE BASE (toujours disponible, NE PAS lister dans les ingrédients) ===
 Sel, poivre, huile d'olive, huile neutre, vinaigre, farine, sucre, ail, oignon, épices sèches communes (cumin, paprika, curry, herbes de Provence, thym, laurier).
 
@@ -707,9 +724,9 @@ ${inventoryStr}
 ${mealsToProcess}
 
 === MISSION ===
-Pour chaque repas listé ci-dessus, génère la liste exacte des ingrédients nécessaires.
+Pour chaque repas listé ci-dessus, génère la liste exacte des ingrédients nécessaires pour ${numServings} personne${numServings > 1 ? "s" : ""}.
 Tu DOIS conserver EXACTEMENT les mêmes titres. Tu ajoutes UNIQUEMENT les ingrédients.
-Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équilibré"}.
+Cible stricte : ~${kcalPerMeal} kcal PAR REPAS PAR PERSONNE. Régime : ${dietLabel || "Équilibré"}.
 
 === RÈGLE ANTI-GASPI ===
 Utilise en priorité l'inventaire du frigo pour composer la recette.
@@ -1011,9 +1028,10 @@ Chaque ingrédient est un OBJET avec 4 champs :
 
 async function regenerateSingleMeal(req, res, next) {
   const uid = req.user.uid;
-  const { day, type, currentMeals, preferences } = req.body;
+  const { day, type, currentMeals, preferences, servings } = req.body;
+  const numServings = Number(servings) || Number(preferences?.servings) || 2;
   const t0 = Date.now();
-  console.log("🔄 regenerateSingleMeal START —", day, type);
+  console.log("🔄 regenerateSingleMeal START —", day, type, "servings:", numServings);
 
   let pantryItems = [];
   let culinary = {};
@@ -1061,6 +1079,10 @@ async function regenerateSingleMeal(req, res, next) {
 
   const prompt = `Tu es un chef nutritionniste créatif et ingénieux.
 ${profileSection}${equipmentConstraint}
+=== NOMBRE DE CONVIVES ===
+Adapte les quantités pour ${numServings} personne${numServings > 1 ? "s" : ""}.
+Les calories ci-dessous sont PAR PERSONNE.
+
 === PLACARD DE BASE (toujours disponible, NE PAS lister dans les ingrédients) ===
 Sel, poivre, huile d'olive, huile neutre, vinaigre, farine, sucre, ail, oignon, épices sèches communes.
 
@@ -1072,7 +1094,8 @@ ${exclusionList || "(aucun)"}
 
 === MISSION ===
 Génère UN SEUL repas alternatif pour ${day} ${type === "lunch" ? "Midi" : "Soir"}.
-Cible stricte : ~${kcalPerMeal} kcal PAR REPAS. Régime : ${dietLabel || "Équilibré"}.
+Cible stricte : ~${kcalPerMeal} kcal PAR REPAS PAR PERSONNE. Régime : ${dietLabel || "Équilibré"}.
+Les quantités d'ingrédients doivent être adaptées pour ${numServings} convive${numServings > 1 ? "s" : ""}.
 
 === RÈGLES ===
 1. Le plat DOIT être COMPLÈTEMENT DIFFÉRENT de tous les repas listés ci-dessus.
