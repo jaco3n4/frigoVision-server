@@ -310,7 +310,7 @@ async function streamWeeklyPlan(req, res) {
   // Auth déjà gérée par le middleware requireAuth
   const uid = req.user.uid;
   const { diet, calories, nutrition, mood, servings, lockedMeals } = req.body;
-  const numServings = Number(servings) || 2;
+  const numServings = Math.min(Math.max(Number(servings) || 2, 1), 12);
   const t0 = Date.now();
   console.log("🟢 streamWeeklyPlan SSE START — uid:", uid, "diet:", diet, "servings:", numServings);
 
@@ -456,6 +456,18 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
           calories: m.calories || 0,
           ingredients: [],
         };
+      }
+    }
+    // Re-injecter les plats verrouilles dans le plan
+    if (Array.isArray(lockedMeals) && lockedMeals.length > 0) {
+      const existingDoc = await planDocRef.get();
+      const existingPlan = existingDoc.exists ? existingDoc.data() : {};
+      for (const lm of lockedMeals) {
+        const dk = (lm.day || "").toLowerCase();
+        const slot = (lm.slot || "").toLowerCase();
+        if (plan[dk] && (slot === "lunch" || slot === "dinner") && existingPlan[dk]?.[slot]) {
+          plan[dk][slot] = existingPlan[dk][slot];
+        }
       }
     }
     await planDocRef.set({ ...plan, isGenerating: true });
@@ -679,7 +691,7 @@ async function processMealIngredients(req, res) {
     equipmentConstraint,
     servings: payloadServings,
   } = payload;
-  const numServings = Number(payloadServings) || 2;
+  const numServings = Math.min(Math.max(Number(payloadServings) || 2, 1), 12);
   const t0 = Date.now();
   const planDocRef = db.doc(`users/${uid}/planning/current_week`);
   console.log(
@@ -1029,7 +1041,18 @@ Chaque ingrédient est un OBJET avec 4 champs :
 async function regenerateSingleMeal(req, res, next) {
   const uid = req.user.uid;
   const { day, type, currentMeals, preferences, servings } = req.body;
-  const numServings = Number(servings) || Number(preferences?.servings) || 2;
+
+  // Validation
+  const validDays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  if (!day || !validDays.includes(day)) {
+    return res.status(400).json({ error: `Invalid day: ${day}. Must be one of ${validDays.join(", ")}` });
+  }
+  if (!type || (type !== "lunch" && type !== "dinner")) {
+    return res.status(400).json({ error: `Invalid type: ${type}. Must be "lunch" or "dinner"` });
+  }
+
+  const rawServings = Number(servings) || Number(preferences?.servings) || 2;
+  const numServings = Math.min(Math.max(rawServings, 1), 12);
   const t0 = Date.now();
   console.log("🔄 regenerateSingleMeal START —", day, type, "servings:", numServings);
 
@@ -1128,6 +1151,9 @@ Les quantités d'ingrédients doivent être adaptées pour ${numServings} conviv
       },
     });
     const text = result.text;
+    if (!text) {
+      throw new Error("Gemini n'a retourné aucun contenu pour le repas.");
+    }
     console.log(
       JSON.stringify({
         event: "AI_RESPONSE",
@@ -1136,8 +1162,16 @@ Les quantités d'ingrédients doivent être adaptées pour ${numServings} conviv
       }),
     );
 
-    const parsed = JSON.parse(text);
-    const m = parsed.meal;
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = cleanAndParseJSON(text);
+    }
+    const m = parsed?.meal;
+    if (!m || !m.title) {
+      throw new Error("Format de repas invalide retourné par l'IA.");
+    }
 
     console.log(
       "✅ regenerateSingleMeal DONE en",
