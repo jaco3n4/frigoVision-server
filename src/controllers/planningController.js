@@ -1126,8 +1126,10 @@ Les quantités d'ingrédients doivent être adaptées pour ${numServings} conviv
 3. Titre court (2-4 mots), description (1 phrase appétissante).
 4. COHÉRENCE CALORIQUE : Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement la taille d'un plat léger (ex: pas d'omelette géante). Tu DOIS imaginer des accompagnements denses en énergie (fromage, pain, riz, avocat, oléagineux) et les inclure obligatoirement dans la description.
 5. FORMAT INGRÉDIENTS — chaque ingrédient est un OBJET avec 4 champs :
-   - "ingredient_id", "name", "quantity", "unit".
-   - "unit" : STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.
+   - "ingredient_id" : pour les ingrédients du FRIGO qui ont un [ID:xxx], RECOPIE cet ID exactement. Pour les ingrédients à ACHETER, mets "".
+   - "name" : nom GÉNÉRIQUE de l'ingrédient UNIQUEMENT, SANS quantité, SANS unité, SANS qualifier alimentaire (halal, casher, bio, vegan, fermier…). Exemple : "Poivron rouge", JAMAIS "pc poivron" ou "2 poivrons" ou "150g poulet". Le régime de l'utilisateur est déjà pris en compte.
+   - "quantity" : nombre uniquement (ex: 150, 2, 0.5). Jamais 0.
+   - "unit" : unité STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.
 6. VIGILANCE ALLERGIES (SÉCURITÉ ABSOLUE) : Si le profil indique des allergies, tu as l'INTERDICTION d'utiliser des produits transformés, de boulangerie ou des sauces classiques qui contiennent traditionnellement cet allergène en ingrédient caché (ex: si allergie aux œufs = pas de pain brioché, pas de béchamel, pas de mayonnaise, pas de pâtes fraîches ; si allergie au lait = pas de beurre, pas de crème). Privilégie des associations 100% brutes et sûres.`;
 
   try {
