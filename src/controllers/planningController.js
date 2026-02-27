@@ -584,6 +584,7 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
         thinkingConfig: { thinkingBudget: 1024 },
       },
     });
+    });
     const raw = result.text;
     if (!raw) throw new Error("Gemini n'a retourné aucun contenu");
 
