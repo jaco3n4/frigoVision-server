@@ -309,7 +309,7 @@ async function streamWeeklyPlan(req, res) {
 
   // Auth déjà gérée par le middleware requireAuth
   const uid = req.user.uid;
-  const { diet, calories, nutrition, mood, servings, lockedMeals } = req.body;
+  const { diet, calories, nutrition, mood, servings, lockedMeals, excludeMeals } = req.body;
   const numServings = Math.min(Math.max(Number(servings) || 2, 1), 12);
   const t0 = Date.now();
   console.log("🟢 streamWeeklyPlan SSE START — uid:", uid, "diet:", diet, "servings:", numServings);
@@ -346,6 +346,19 @@ async function streamWeeklyPlan(req, res) {
       "items",
     );
 
+    // Correction 2 — Lire l'historique des plats récents
+    const historyDoc = await db.doc(`users/${uid}/planning/history`).get();
+    const recentTitles = historyDoc.exists ? (historyDoc.data().recentMealTitles || []) : [];
+
+    const historySection = recentTitles.length > 0
+      ? `\n=== MÉMOIRE — Plats générés récemment (${recentTitles.length} plats) — ÉVITER ===\n${recentTitles.join(', ')}\nVarie au maximum par rapport à cette liste.\n`
+      : '';
+
+    // Correction 1 — Section d'exclusion des plats actuels
+    const excludeSection = Array.isArray(excludeMeals) && excludeMeals.length > 0
+      ? `\n=== REPAS PRÉCÉDENTS — INTERDIT de les reproposer ===\n${excludeMeals.map(t => `- ${t}`).join('\n')}\nTu DOIS proposer des plats COMPLÈTEMENT DIFFÉRENTS de cette liste (titre, protéine principale et technique de cuisson différents).\n`
+      : '';
+
     const emptyPlan = {};
     for (const dk of DAY_KEYS) {
       emptyPlan[dk] = { lunch: null, dinner: null };
@@ -369,10 +382,18 @@ ${inventoryStr}
 
 === RÈGLE ANTI-GASPI ===
 Tu DOIS concevoir tes repas de manière à utiliser au moins 80% des ingrédients listés dans le frigo au moins une fois dans la semaine.
-${lockedSection}
+${lockedSection}${excludeSection}${historySection}
 === MISSION ===
 Conçois un menu de ${numMealsToGenerate} repas pour la semaine (Lundi-Dimanche, Midi et Soir).
-Cible stricte : ~${kcalPerMeal} kcal PAR REPAS PAR PERSONNE. Régime : ${dietLabel || "Équilibré"}.
+Chaque repas DOIT contenir entre ${Math.round(kcalPerMeal * 0.8)} et ${Math.round(kcalPerMeal * 1.2)} kcal PAR PERSONNE.
+Cible idéale : ${kcalPerMeal} kcal. NE DÉPASSE JAMAIS ${Math.round(kcalPerMeal * 1.2)} kcal.
+Adapte le TYPE de plat à la cible calorique :
+- Si < 400 kcal/repas : salades, poké bowls, soupes, plats vapeur légers.
+- Si 400-600 kcal/repas : plats équilibrés classiques, woks, grillades avec légumes.
+- Si 600-800 kcal/repas : plats complets avec féculents, gratins, plats mijotés.
+- Si > 800 kcal/repas : plats riches, burgers, plats en sauce, pâtes généreuses.
+Si tu ne peux pas faire tenir la recette dans cette fourchette calorique, change de recette.
+Régime : ${dietLabel || "Équilibré"}.
 NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
 
 === RÈGLES ===
@@ -397,7 +418,7 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
         responseMimeType: "application/json",
         responseSchema: weeklySkeletonSchema,
         maxOutputTokens: 8192,
-        temperature: 0.9,
+        temperature: 0.8,
         thinkingConfig: { thinkingBudget: 1024 },
       },
     });
@@ -441,6 +462,23 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
       Date.now() - t0,
       "ms",
     );
+
+    // Correction 4 — Validation post-génération des calories
+    const kcalMin = Math.round(kcalPerMeal * 0.7);
+    const kcalMax = Math.round(kcalPerMeal * 1.3);
+    for (const m of meals) {
+      if (m.calories < kcalMin || m.calories > kcalMax) {
+        console.warn(`⚠️ Calorie hors range: ${m.title} = ${m.calories} kcal (cible: ${kcalPerMeal}, range: ${kcalMin}-${kcalMax})`);
+        m.calories = Math.max(kcalMin, Math.min(kcalMax, m.calories));
+      }
+    }
+
+    // Correction 2 — Sauvegarder l'historique des titres récents (tâche de fond, non bloquant)
+    const newTitles = meals.map(m => m.title).filter(Boolean);
+    const oldTitles = historyDoc.exists ? (historyDoc.data().recentMealTitles || []) : [];
+    const updatedTitles = [...newTitles, ...oldTitles].slice(0, 42);
+    db.doc(`users/${uid}/planning/history`).set({ recentMealTitles: updatedTitles, updatedAt: new Date() })
+      .catch(err => console.warn('⚠️ Erreur sauvegarde historique:', err.message));
 
     const plan = {};
     for (const dk of DAY_KEYS) {
@@ -583,7 +621,6 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
         temperature: 0.9,
         thinkingConfig: { thinkingBudget: 1024 },
       },
-    });
     });
     const raw = result.text;
     if (!raw) throw new Error("Gemini n'a retourné aucun contenu");
@@ -739,7 +776,16 @@ ${mealsToProcess}
 === MISSION ===
 Pour chaque repas listé ci-dessus, génère la liste exacte des ingrédients nécessaires pour ${numServings} personne${numServings > 1 ? "s" : ""}.
 Tu DOIS conserver EXACTEMENT les mêmes titres. Tu ajoutes UNIQUEMENT les ingrédients.
-Cible stricte : ~${kcalPerMeal} kcal PAR REPAS PAR PERSONNE. Régime : ${dietLabel || "Équilibré"}.
+Pour chaque repas, les calories cibles sont celles indiquées entre parenthèses (~X kcal). Adapte les quantités d'ingrédients pour atteindre EXACTEMENT ces calories, pas la cible générique.
+Chaque repas DOIT contenir entre ${Math.round(kcalPerMeal * 0.8)} et ${Math.round(kcalPerMeal * 1.2)} kcal PAR PERSONNE.
+Cible idéale : ${kcalPerMeal} kcal. NE DÉPASSE JAMAIS ${Math.round(kcalPerMeal * 1.2)} kcal.
+Adapte le TYPE de plat à la cible calorique :
+- Si < 400 kcal/repas : salades, poké bowls, soupes, plats vapeur légers.
+- Si 400-600 kcal/repas : plats équilibrés classiques, woks, grillades avec légumes.
+- Si 600-800 kcal/repas : plats complets avec féculents, gratins, plats mijotés.
+- Si > 800 kcal/repas : plats riches, burgers, plats en sauce, pâtes généreuses.
+Si tu ne peux pas faire tenir la recette dans cette fourchette calorique, change de recette.
+Régime : ${dietLabel || "Équilibré"}.
 
 === RÈGLE ANTI-GASPI ===
 Utilise en priorité l'inventaire du frigo pour composer la recette.
@@ -1118,7 +1164,15 @@ ${exclusionList || "(aucun)"}
 
 === MISSION ===
 Génère UN SEUL repas alternatif pour ${day} ${type === "lunch" ? "Midi" : "Soir"}.
-Cible stricte : ~${kcalPerMeal} kcal PAR REPAS PAR PERSONNE. Régime : ${dietLabel || "Équilibré"}.
+Chaque repas DOIT contenir entre ${Math.round(kcalPerMeal * 0.8)} et ${Math.round(kcalPerMeal * 1.2)} kcal PAR PERSONNE.
+Cible idéale : ${kcalPerMeal} kcal. NE DÉPASSE JAMAIS ${Math.round(kcalPerMeal * 1.2)} kcal.
+Adapte le TYPE de plat à la cible calorique :
+- Si < 400 kcal/repas : salades, poké bowls, soupes, plats vapeur légers.
+- Si 400-600 kcal/repas : plats équilibrés classiques, woks, grillades avec légumes.
+- Si 600-800 kcal/repas : plats complets avec féculents, gratins, plats mijotés.
+- Si > 800 kcal/repas : plats riches, burgers, plats en sauce, pâtes généreuses.
+Si tu ne peux pas faire tenir la recette dans cette fourchette calorique, change de recette.
+Régime : ${dietLabel || "Équilibré"}.
 Les quantités d'ingrédients doivent être adaptées pour ${numServings} convive${numServings > 1 ? "s" : ""}.
 
 === RÈGLES ===
