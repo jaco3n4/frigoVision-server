@@ -9,7 +9,6 @@ const {
   generateWeeklyPlan,
   streamWeeklyPlan,
   generateWeeklyPlanSkeleton,
-  processMealIngredients,
   regenerateSingleMeal,
 } = require("../controllers/planningController");
 const { classifyShoppingItem } = require("../controllers/shoppingController");
@@ -112,10 +111,5 @@ router.get("/api/share/redirect", shareRedirect);
 // RECEIPT
 // =====================================================================
 router.post("/api/receipt/analyze", requireAuth, analyzeReceiptImage);
-
-// =====================================================================
-// INTERNAL (Pub/Sub → HTTP push, pas d'auth Firebase utilisateur)
-// =====================================================================
-router.post("/api/internal/processMealIngredients", processMealIngredients);
 
 module.exports = router;

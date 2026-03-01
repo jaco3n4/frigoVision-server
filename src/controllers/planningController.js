@@ -1,5 +1,4 @@
 const { aiGlobal: ai } = require("../config/vertexai");
-const { pubsub } = require("../config/pubsub");
 const { db, admin } = require("../config/firebase");
 const { cleanAndParseJSON } = require("../utils/json");
 const {
@@ -510,8 +509,20 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
     }
     await planDocRef.set({ ...plan, isGenerating: true });
 
+    res.write(`data: ${JSON.stringify({ event: "complete" })}\n\n`);
+    console.log(
+      "🏁 streamWeeklyPlan Phase A DONE en",
+      Date.now() - t0,
+      "ms —",
+      meals.length,
+      "repas",
+    );
+
+    // Phase B — await avant res.end() pour garder le CPU Cloud Run alloué
+    // Le client a déjà reçu l'event "complete", le XHR reste ouvert silencieusement
     if (meals.length > 0) {
-      const pubsubPayload = {
+      console.log("🚀 Phase B déclenchée (direct, même requête)");
+      await runPhaseB({
         uid,
         meals: meals.map((m) => ({
           day: (m.day || "").toLowerCase(),
@@ -531,21 +542,9 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
         kcalTarget: Number(kcalTarget),
         equipmentConstraint,
         servings: numServings,
-      };
-      await pubsub
-        .topic("process-meal-ingredients")
-        .publishMessage({ json: pubsubPayload });
-      console.log("📨 Pub/Sub — Phase B déclenchée");
+      });
     }
 
-    res.write(`data: ${JSON.stringify({ event: "complete" })}\n\n`);
-    console.log(
-      "🏁 streamWeeklyPlan DONE en",
-      Date.now() - t0,
-      "ms —",
-      meals.length,
-      "repas",
-    );
     res.end();
   } catch (error) {
     console.error("❌ streamWeeklyPlan ERROR:", error.message, error.stack);
@@ -660,7 +659,10 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
     const planDocRef = db.doc(`users/${uid}/planning/current_week`);
     await planDocRef.set({ ...plan, isGenerating: true });
 
-    const pubsubPayload = {
+    console.log("🏁 generateWeeklyPlanSkeleton DONE en", Date.now() - t0, "ms");
+
+    // Phase B — fire-and-forget
+    runPhaseB({
       uid,
       meals: meals.map((m) => ({
         day: (m.day || "").toLowerCase(),
@@ -679,11 +681,7 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
       dietLabel,
       kcalTarget: Number(kcalTarget),
       equipmentConstraint,
-    };
-    await pubsub
-      .topic("process-meal-ingredients")
-      .publishMessage({ json: pubsubPayload });
-    console.log("🏁 generateWeeklyPlanSkeleton DONE en", Date.now() - t0, "ms");
+    }).catch((err) => console.error("❌ Phase B fire-and-forget error:", err.message));
 
     return res.json({ status: "skeleton_ready" });
   } catch (error) {
@@ -703,37 +701,97 @@ NE LISTE AUCUN INGRÉDIENT. Donne uniquement les titres et descriptions.
 }
 
 // =====================================================================
-// processMealIngredients — Route HTTP Pub/Sub (ex-onMessagePublished)
+// writeAnalyticsBatches — Écriture analytics fire-and-forget
 // =====================================================================
 
-async function processMealIngredients(req, res) {
-  // Eventarc/Pub/Sub envoie le message dans req.body.message.data (base64) ou req.body directement
-  let payload;
-  if (req.body.message && req.body.message.data) {
-    // Format Pub/Sub push subscription
-    payload = JSON.parse(
-      Buffer.from(req.body.message.data, "base64").toString(),
-    );
-  } else {
-    // Appel direct HTTP
-    payload = req.body;
+function writeAnalyticsBatches(allUnmatched, allFuzzy, allExact) {
+  if (allUnmatched.length > 0) {
+    const batch = db.batch();
+    const grouped = new Map();
+    for (const item of allUnmatched) {
+      const key = normalizeIngName(item.name);
+      if (!key) continue;
+      if (!grouped.has(key))
+        grouped.set(key, { name: item.name, variants: new Set(), contexts: new Set() });
+      const g = grouped.get(key);
+      g.variants.add(item.name);
+      if (item.context) g.contexts.add(item.context);
+    }
+    for (const [key, g] of grouped) {
+      batch.set(db.collection("unmatched_ingredients").doc(key), {
+        name: g.name,
+        variants: admin.firestore.FieldValue.arrayUnion(...g.variants),
+        contexts: admin.firestore.FieldValue.arrayUnion(...[...g.contexts].slice(0, 5)),
+        count: admin.firestore.FieldValue.increment(1),
+        lastSeen: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    batch.commit()
+      .then(() => console.log(`📦 ${grouped.size} ingrédients non-matchés enregistrés`))
+      .catch((e) => console.warn("⚠️ Erreur écriture unmatched:", e.message));
   }
 
-  const {
-    uid,
-    meals,
-    inventory,
-    profileSection,
-    dietLabel,
-    kcalTarget,
-    equipmentConstraint,
-    servings: payloadServings,
-  } = payload;
+  if (allFuzzy.length > 0) {
+    const batch = db.batch();
+    const grouped = new Map();
+    for (const item of allFuzzy) {
+      const key = normalizeIngName(item.geminiName);
+      if (!key) continue;
+      if (!grouped.has(key))
+        grouped.set(key, { geminiName: item.geminiName, canonicalName: item.canonicalName, ingredientId: item.ingredientId, variants: new Set(), contexts: new Set() });
+      const g = grouped.get(key);
+      g.variants.add(item.geminiName);
+      if (item.context) g.contexts.add(item.context);
+    }
+    for (const [key, g] of grouped) {
+      batch.set(db.collection("fuzzy_matched_ingredients").doc(key), {
+        geminiName: g.geminiName, canonicalName: g.canonicalName, ingredientId: g.ingredientId,
+        variants: admin.firestore.FieldValue.arrayUnion(...g.variants),
+        contexts: admin.firestore.FieldValue.arrayUnion(...[...g.contexts].slice(0, 5)),
+        count: admin.firestore.FieldValue.increment(1),
+        lastSeen: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    batch.commit()
+      .then(() => console.log(`🔀 ${grouped.size} fuzzy matches enregistrés`))
+      .catch((e) => console.warn("⚠️ Erreur écriture fuzzy:", e.message));
+  }
+
+  if (allExact.length > 0) {
+    const batch = db.batch();
+    const grouped = new Map();
+    for (const item of allExact) {
+      const key = normalizeIngName(item.name);
+      if (!key) continue;
+      if (!grouped.has(key))
+        grouped.set(key, { name: item.name, ingredientId: item.ingredientId, contexts: new Set() });
+      const g = grouped.get(key);
+      if (item.context) g.contexts.add(item.context);
+    }
+    for (const [key, g] of grouped) {
+      batch.set(db.collection("exact_matched_ingredients").doc(key), {
+        name: g.name, ingredientId: g.ingredientId,
+        contexts: admin.firestore.FieldValue.arrayUnion(...[...g.contexts].slice(0, 5)),
+        count: admin.firestore.FieldValue.increment(1),
+        lastSeen: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    batch.commit()
+      .then(() => console.log(`✅ ${grouped.size} exact matches enregistrés`))
+      .catch((e) => console.warn("⚠️ Erreur écriture exact:", e.message));
+  }
+}
+
+// =====================================================================
+// runPhaseB — Génération des ingrédients (appelé directement, sans Pub/Sub)
+// =====================================================================
+
+async function runPhaseB({ uid, meals, inventory, profileSection, dietLabel, kcalTarget, equipmentConstraint, servings: payloadServings }) {
   const numServings = Math.min(Math.max(Number(payloadServings) || 2, 1), 12);
   const t0 = Date.now();
   const planDocRef = db.doc(`users/${uid}/planning/current_week`);
   console.log(
-    "🟢 processMealIngredients START — uid:",
+    "🟢 runPhaseB START — uid:",
     uid,
     "meals:",
     meals.length,
@@ -929,145 +987,20 @@ Chaque ingrédient est un OBJET avec 4 champs :
       "📝 Firestore update — tous les ingrédients écrits, isGenerating: false",
     );
 
-    // Queue unmatched
-    if (allUnmatched.length > 0) {
-      try {
-        const batch = db.batch();
-        const grouped = new Map();
-        for (const item of allUnmatched) {
-          const key = normalizeIngName(item.name);
-          if (!key) continue;
-          if (!grouped.has(key))
-            grouped.set(key, {
-              name: item.name,
-              variants: new Set(),
-              contexts: new Set(),
-            });
-          const g = grouped.get(key);
-          g.variants.add(item.name);
-          if (item.context) g.contexts.add(item.context);
-        }
-        for (const [key, g] of grouped) {
-          const docRef = db.collection("unmatched_ingredients").doc(key);
-          batch.set(
-            docRef,
-            {
-              name: g.name,
-              variants: admin.firestore.FieldValue.arrayUnion(...g.variants),
-              contexts: admin.firestore.FieldValue.arrayUnion(
-                ...[...g.contexts].slice(0, 5),
-              ),
-              count: admin.firestore.FieldValue.increment(1),
-              lastSeen: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true },
-          );
-        }
-        await batch.commit();
-        console.log(`📦 ${grouped.size} ingrédients non-matchés enregistrés`);
-      } catch (e) {
-        console.warn("⚠️ Erreur écriture unmatched:", e.message);
-      }
-    }
-
-    // Queue fuzzy
-    if (allFuzzy.length > 0) {
-      try {
-        const batch = db.batch();
-        const grouped = new Map();
-        for (const item of allFuzzy) {
-          const key = normalizeIngName(item.geminiName);
-          if (!key) continue;
-          if (!grouped.has(key))
-            grouped.set(key, {
-              geminiName: item.geminiName,
-              canonicalName: item.canonicalName,
-              ingredientId: item.ingredientId,
-              variants: new Set(),
-              contexts: new Set(),
-            });
-          const g = grouped.get(key);
-          g.variants.add(item.geminiName);
-          if (item.context) g.contexts.add(item.context);
-        }
-        for (const [key, g] of grouped) {
-          const docRef = db.collection("fuzzy_matched_ingredients").doc(key);
-          batch.set(
-            docRef,
-            {
-              geminiName: g.geminiName,
-              canonicalName: g.canonicalName,
-              ingredientId: g.ingredientId,
-              variants: admin.firestore.FieldValue.arrayUnion(...g.variants),
-              contexts: admin.firestore.FieldValue.arrayUnion(
-                ...[...g.contexts].slice(0, 5),
-              ),
-              count: admin.firestore.FieldValue.increment(1),
-              lastSeen: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true },
-          );
-        }
-        await batch.commit();
-        console.log(`🔀 ${grouped.size} fuzzy matches enregistrés`);
-      } catch (e) {
-        console.warn("⚠️ Erreur écriture fuzzy:", e.message);
-      }
-    }
-
-    // Queue exact
-    if (allExact.length > 0) {
-      try {
-        const batch = db.batch();
-        const grouped = new Map();
-        for (const item of allExact) {
-          const key = normalizeIngName(item.name);
-          if (!key) continue;
-          if (!grouped.has(key))
-            grouped.set(key, {
-              name: item.name,
-              ingredientId: item.ingredientId,
-              contexts: new Set(),
-            });
-          const g = grouped.get(key);
-          if (item.context) g.contexts.add(item.context);
-        }
-        for (const [key, g] of grouped) {
-          const docRef = db.collection("exact_matched_ingredients").doc(key);
-          batch.set(
-            docRef,
-            {
-              name: g.name,
-              ingredientId: g.ingredientId,
-              contexts: admin.firestore.FieldValue.arrayUnion(
-                ...[...g.contexts].slice(0, 5),
-              ),
-              count: admin.firestore.FieldValue.increment(1),
-              lastSeen: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true },
-          );
-        }
-        await batch.commit();
-        console.log(`✅ ${grouped.size} exact matches enregistrés`);
-      } catch (e) {
-        console.warn("⚠️ Erreur écriture exact:", e.message);
-      }
-    }
+    // Analytics writes — fire-and-forget (non-bloquant pour l'UX)
+    writeAnalyticsBatches(allUnmatched, allFuzzy, allExact);
 
     console.log(
-      "🏁 processMealIngredients DONE en",
+      "🏁 runPhaseB DONE en",
       Date.now() - t0,
       "ms total",
     );
-    return res.json({ status: "ok" });
   } catch (error) {
     console.error(
-      "❌ processMealIngredients ERROR:",
+      "❌ runPhaseB ERROR:",
       error.message,
       error.stack,
     );
-    return res.status(500).json({ error: error.message });
   } finally {
     try {
       const doc = await planDocRef.get();
@@ -1260,6 +1193,5 @@ module.exports = {
   generateWeeklyPlan,
   streamWeeklyPlan,
   generateWeeklyPlanSkeleton,
-  processMealIngredients,
   regenerateSingleMeal,
 };

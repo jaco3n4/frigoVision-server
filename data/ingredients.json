@@ -12291,23 +12291,6 @@
     "default_quantity": 1
   },
   {
-    "id": "ciqual_25416",
-    "name": "Burger au poisson",
-    "description": "provenant de fast food",
-    "search_terms": "Mc Fish Filet-o-fish Fish burger",
-    "category": "Poissons & Fruits de mer",
-    "emoji": "🐟",
-    "popularity_score": 70,
-    "nutrition": {
-      "kcal_100g": 263
-    },
-    "default_expiry_days": 2,
-    "piece_weight": null,
-    "form": "solide",
-    "default_unit": "g",
-    "default_quantity": 150
-  },
-  {
     "id": "ciqual_25229",
     "name": "Bâtonnet pané soja et blé",
     "description": "préemballée",
@@ -29649,20 +29632,20 @@
   },
   {
     "id": "ciqual_15010",
-    "name": "Sésame",
-    "description": "graine",
-    "search_terms": "Sésame, graine",
-    "category": "Fruits & Légumes",
-    "emoji": "🥦",
-    "popularity_score": 50,
+    "name": "Graine de sésame",
+    "description": "graine oléagineuse",
+    "search_terms": "graine de sésame, sésame, graines de sésame, sésame blanc, sésame noir, sésame doré, tahini, gomasio",
+    "category": "Épicerie & Condiments",
+    "emoji": "🌾",
+    "popularity_score": 60,
     "nutrition": {
-      "kcal_100g": 0
+      "kcal_100g": 573
     },
-    "default_expiry_days": 7,
-    "piece_weight": 150,
+    "default_expiry_days": 365,
+    "piece_weight": 100,
     "form": "solide",
-    "default_unit": "piece",
-    "default_quantity": 1
+    "default_unit": "g",
+    "default_quantity": 20
   },
   {
     "id": "ciqual_13080",
@@ -34372,5 +34355,209 @@
     "form": "solide",
     "default_unit": "piece",
     "default_quantity": 2
+  },
+  {
+    "id": "custom_091",
+    "name": "Edamame",
+    "description": "fèves de soja immatures",
+    "search_terms": "edamame, edamamé, edamame écossés, edamame surgelés, fèves de soja, soja vert, fève de soja",
+    "category": "Fruits & Légumes",
+    "emoji": "🫛",
+    "popularity_score": 55,
+    "nutrition": {
+      "kcal_100g": 122
+    },
+    "default_expiry_days": 180,
+    "piece_weight": 200,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 150
+  },
+  {
+    "id": "custom_092",
+    "name": "Ghee",
+    "description": "beurre clarifié indien",
+    "search_terms": "ghee, ghî, beurre clarifié, beurre indien, beurre ghee, clarified butter",
+    "category": "Frais & Crémerie",
+    "emoji": "🧈",
+    "popularity_score": 50,
+    "nutrition": {
+      "kcal_100g": 900
+    },
+    "default_expiry_days": 180,
+    "piece_weight": 250,
+    "form": "liquide",
+    "default_unit": "g",
+    "default_quantity": 15
+  },
+  {
+    "id": "custom_093",
+    "name": "Nachos",
+    "description": "chips de tortilla de maïs",
+    "search_terms": "nachos, chips tortilla, tortilla chips, chips de maïs, chips mexicaines",
+    "category": "Épicerie & Condiments",
+    "emoji": "🌮",
+    "popularity_score": 50,
+    "nutrition": {
+      "kcal_100g": 480
+    },
+    "default_expiry_days": 90,
+    "piece_weight": 200,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 100
+  },
+  {
+    "id": "custom_094",
+    "name": "Guanciale",
+    "description": "joue de porc séchée italienne",
+    "search_terms": "guanciale, joue de porc, bajoue de porc, lard italien, charcuterie italienne, carbonara",
+    "category": "Boucherie & Charcuterie",
+    "emoji": "🥓",
+    "popularity_score": 40,
+    "nutrition": {
+      "kcal_100g": 655
+    },
+    "default_expiry_days": 30,
+    "piece_weight": 150,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 100
+  },
+  {
+    "id": "custom_095",
+    "name": "Jalapeño",
+    "description": "piment mexicain moyennement fort",
+    "search_terms": "jalapeño, jalapeno, jalapenos, jalapeños, piment jalapeño, piment mexicain, piment vert",
+    "category": "Fruits & Légumes",
+    "emoji": "🌶️",
+    "popularity_score": 50,
+    "nutrition": {
+      "kcal_100g": 28
+    },
+    "default_expiry_days": 14,
+    "piece_weight": 15,
+    "form": "solide",
+    "default_unit": "piece",
+    "default_quantity": 2
+  },
+  {
+    "id": "custom_096",
+    "name": "Sriracha",
+    "description": "sauce pimentée thaïlandaise",
+    "search_terms": "sriracha, sauce sriracha, sauce pimentée, sauce chili, hot sauce, sauce piquante",
+    "category": "Épicerie & Condiments",
+    "emoji": "🌶️",
+    "popularity_score": 55,
+    "nutrition": {
+      "kcal_100g": 93
+    },
+    "default_expiry_days": 365,
+    "piece_weight": 250,
+    "form": "liquide",
+    "default_unit": "ml",
+    "default_quantity": 15
+  },
+  {
+    "id": "custom_097",
+    "name": "Shiitake",
+    "description": "champignon japonais parfumé",
+    "search_terms": "shiitake, shiitaké, champignon shiitake, champignon japonais, lentin du chêne, shitake",
+    "category": "Fruits & Légumes",
+    "emoji": "🍄",
+    "popularity_score": 45,
+    "nutrition": {
+      "kcal_100g": 34
+    },
+    "default_expiry_days": 7,
+    "piece_weight": 10,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 150
+  },
+  {
+    "id": "custom_098",
+    "name": "Scampis",
+    "description": "langoustines ou grosses crevettes",
+    "search_terms": "scampis, scampi, langoustines, grosses crevettes, gambas, crevettes géantes, langoustine",
+    "category": "Poissons & Fruits de mer",
+    "emoji": "🦐",
+    "popularity_score": 50,
+    "nutrition": {
+      "kcal_100g": 90
+    },
+    "default_expiry_days": 3,
+    "piece_weight": 25,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 200
+  },
+  {
+    "id": "custom_099",
+    "name": "Pleurotes",
+    "description": "champignon en forme d'huître",
+    "search_terms": "pleurotes, pleurote, champignon pleurote, champignon huître, oyster mushroom",
+    "category": "Fruits & Légumes",
+    "emoji": "🍄",
+    "popularity_score": 45,
+    "nutrition": {
+      "kcal_100g": 33
+    },
+    "default_expiry_days": 5,
+    "piece_weight": 30,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 150
+  },
+  {
+    "id": "custom_100",
+    "name": "Panko",
+    "description": "chapelure japonaise légère et croustillante",
+    "search_terms": "panko, chapelure japonaise, chapelure panko, breadcrumbs, chapelure croustillante",
+    "category": "Épicerie & Condiments",
+    "emoji": "🍞",
+    "popularity_score": 50,
+    "nutrition": {
+      "kcal_100g": 395
+    },
+    "default_expiry_days": 180,
+    "piece_weight": 200,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 50
+  },
+  {
+    "id": "custom_101",
+    "name": "Fauxmage râpé",
+    "description": "fromage végétal râpé",
+    "search_terms": "fauxmage, fauxmage râpé, fromage végétal, fromage vegan, vromage, simili fromage, faux fromage",
+    "category": "Frais & Crémerie",
+    "emoji": "🧀",
+    "popularity_score": 40,
+    "nutrition": {
+      "kcal_100g": 250
+    },
+    "default_expiry_days": 21,
+    "piece_weight": 150,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 50
+  },
+  {
+    "id": "custom_102",
+    "name": "Ciabatta",
+    "description": "pain italien alvéolé et croustillant",
+    "search_terms": "ciabatta, pain ciabatta, pain italien, ciabatta bread, focaccia",
+    "category": "Boulangerie & Pains",
+    "emoji": "🍞",
+    "popularity_score": 50,
+    "nutrition": {
+      "kcal_100g": 271
+    },
+    "default_expiry_days": 3,
+    "piece_weight": 250,
+    "form": "solide",
+    "default_unit": "piece",
+    "default_quantity": 1
   }
 ]
