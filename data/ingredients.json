@@ -54,7 +54,7 @@
     "id": "custom_creme_fraiche_epaisse",
     "name": "Crème fraîche",
     "description": "épaisse, entière 30% MG",
-    "search_terms": "creme fraiche epaisse entiere pot, crème épaisse",
+    "search_terms": "crème fraîche, creme fraiche, crème fraîche épaisse, crème épaisse, crème entière, pot de crème",
     "category": "Frais & Crémerie",
     "emoji": "🥣",
     "popularity_score": 100,
@@ -326,7 +326,7 @@
     "id": "ciqual_9086",
     "name": "Pâtes",
     "description": "cuites, nature, non salées",
-    "search_terms": "Pâtes, pates, nouilles, spaghetti, penne, fusilli, tagliatelles, macaroni, pasta, pâtes alimentaires",
+    "search_terms": "Pâtes, pates, spaghetti, penne, fusilli, tagliatelles, macaroni, pasta, pâtes alimentaires, pâtes complètes",
     "category": "Épicerie & Condiments",
     "emoji": "🍝",
     "popularity_score": 100,
@@ -1140,9 +1140,9 @@
   },
   {
     "id": "ciqual_11032",
-    "name": "Basilic",
+    "name": "Basilic séché",
     "description": "séché",
-    "search_terms": "Basilic, séché",
+    "search_terms": "Basilic séché, basilic moulu, basilic déshydraté, herbes séchées basilic",
     "category": "Épicerie & Condiments",
     "emoji": "🌿",
     "popularity_score": 90,
@@ -1752,9 +1752,9 @@
   },
   {
     "id": "ciqual_11006",
-    "name": "Gingembre",
+    "name": "Gingembre en poudre",
     "description": "poudre",
-    "search_terms": "Gingembre, poudre",
+    "search_terms": "Gingembre en poudre, gingembre moulu, gingembre séché, poudre de gingembre",
     "category": "Épicerie & Condiments",
     "emoji": "🫚",
     "popularity_score": 90,
@@ -16695,9 +16695,9 @@
   },
   {
     "id": "ciqual_25592",
-    "name": "Galette",
-    "description": "préemballé",
-    "search_terms": "Galette ou pavé au blé (seitan) et légumes, steak végétal croc seitan, Galette ou pavé au soja et fromage, steak fromage soja croq croc tofu tofou, Galette ou pavé au soja et légumes, steak végétal croq tofu tofou burger croc",
+    "name": "Galette végétale",
+    "description": "préemballé, seitan ou soja",
+    "search_terms": "Galette végétale, steak végétal, galette seitan, galette soja, galette tofu, pavé végétal, burger végétal",
     "category": "Épicerie & Condiments",
     "emoji": "🫓",
     "popularity_score": 70,
@@ -19298,7 +19298,7 @@
     "id": "ciqual_20323",
     "name": "Oignon nouveau",
     "description": "sauté/poêlé sans matière grasse",
-    "search_terms": "Oignon nouveau ou oignon frais ou cébette",
+    "search_terms": "Oignon nouveau, oignon frais, cébette, cébettes, oignon vert, oignon de printemps",
     "category": "Fruits & Légumes",
     "emoji": "🧅",
     "popularity_score": 70,
@@ -21049,7 +21049,7 @@
     "id": "ciqual_32005",
     "name": "Pétales de maïs natures",
     "description": "enrichis en vitamines et minéraux",
-    "search_terms": "Corn flakes, Pétales de maïs natures (non enrichis en vitamines et minéraux)",
+    "search_terms": "Corn flakes, Pétales de maïs natures (non enrichis en vitamines et minéraux), Flocons de maïs, flocons maïs, flocons de céréales",
     "category": "Épicerie & Condiments",
     "emoji": "🌽",
     "popularity_score": 70,
@@ -34054,7 +34054,7 @@
     "id": "custom_072",
     "name": "Sauce salsa",
     "description": "sauce mexicaine à base de tomates",
-    "search_terms": "Sauce salsa, salsa, salsa mexicaine, sauce tomate mexicaine, salsa douce, salsa piquante",
+    "search_terms": "Sauce salsa, salsa, salsa mexicaine, sauce tomate mexicaine, salsa douce",
     "category": "Épicerie & Condiments",
     "emoji": "🫙",
     "popularity_score": 50,
@@ -34556,6 +34556,142 @@
     },
     "default_expiry_days": 3,
     "piece_weight": 250,
+    "form": "solide",
+    "default_unit": "piece",
+    "default_quantity": 1
+  },
+  {
+    "id": "custom_103",
+    "name": "Naan",
+    "description": "pain indien traditionnel au levain",
+    "search_terms": "Naan, pain naan, naan bread, pain indien, galette indienne",
+    "category": "Boulangerie & Pains",
+    "emoji": "🫓",
+    "popularity_score": 65,
+    "nutrition": {
+      "kcal_100g": 290
+    },
+    "default_expiry_days": 5,
+    "piece_weight": 90,
+    "form": "solide",
+    "default_unit": "piece",
+    "default_quantity": 2
+  },
+  {
+    "id": "custom_104",
+    "name": "Citronnelle",
+    "description": "tige aromatique citronnée utilisée en cuisine asiatique",
+    "search_terms": "Citronnelle, lemongrass, citronnelle fraîche, tige de citronnelle, lemon grass",
+    "category": "Fruits & Légumes",
+    "emoji": "🌿",
+    "popularity_score": 50,
+    "nutrition": {
+      "kcal_100g": 99
+    },
+    "default_expiry_days": 14,
+    "piece_weight": 20,
+    "form": "solide",
+    "default_unit": "piece",
+    "default_quantity": 1
+  },
+  {
+    "id": "custom_105",
+    "name": "Crème végétale",
+    "description": "crème d'origine végétale (soja, avoine, coco)",
+    "search_terms": "Crème végétale, crème soja, crème avoine, crème de soja, crème d'avoine, crème de riz, crème cuisson végétale",
+    "category": "Frais & Crémerie",
+    "emoji": "🥛",
+    "popularity_score": 60,
+    "nutrition": {
+      "kcal_100g": 130
+    },
+    "default_expiry_days": 21,
+    "piece_weight": 200,
+    "form": "liquide",
+    "default_unit": "ml",
+    "default_quantity": 200
+  },
+  {
+    "id": "custom_106",
+    "name": "Piment rouge",
+    "description": "piment rouge frais",
+    "search_terms": "Piment rouge, piment rouge frais, piment frais, chili rouge, chili frais, piment fort",
+    "category": "Fruits & Légumes",
+    "emoji": "🌶️",
+    "popularity_score": 55,
+    "nutrition": {
+      "kcal_100g": 40
+    },
+    "default_expiry_days": 14,
+    "piece_weight": 15,
+    "form": "solide",
+    "default_unit": "piece",
+    "default_quantity": 1
+  },
+  {
+    "id": "custom_107",
+    "name": "Sauce d'huître",
+    "description": "sauce épaisse et umami à base d'extraits d'huître",
+    "search_terms": "Sauce d'huître, sauce huitre, sauce huître, oyster sauce, sauce d'huitre",
+    "category": "Épicerie & Condiments",
+    "emoji": "🦪",
+    "popularity_score": 50,
+    "nutrition": {
+      "kcal_100g": 51
+    },
+    "default_expiry_days": 365,
+    "piece_weight": 250,
+    "form": "liquide",
+    "default_unit": "ml",
+    "default_quantity": 15
+  },
+  {
+    "id": "custom_108",
+    "name": "Levure maltée",
+    "description": "levure nutritionnelle en paillettes au goût fromager",
+    "search_terms": "Levure maltée, levure nutritionnelle, nooch, levure en paillettes, levure diététique",
+    "category": "Épicerie & Condiments",
+    "emoji": "✨",
+    "popularity_score": 35,
+    "nutrition": {
+      "kcal_100g": 340
+    },
+    "default_expiry_days": 365,
+    "piece_weight": 100,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 10
+  },
+  {
+    "id": "custom_109",
+    "name": "Gingembre frais",
+    "description": "racine fraîche",
+    "search_terms": "Gingembre frais, gingembre, racine de gingembre, ginger, gingembre cru",
+    "category": "Fruits & Légumes",
+    "emoji": "🫚",
+    "popularity_score": 85,
+    "nutrition": {
+      "kcal_100g": 80
+    },
+    "default_expiry_days": 21,
+    "piece_weight": 50,
+    "form": "solide",
+    "default_unit": "g",
+    "default_quantity": 20
+  },
+  {
+    "id": "custom_110",
+    "name": "Basilic frais",
+    "description": "herbe aromatique fraîche",
+    "search_terms": "Basilic frais, basilic, basilic vert, feuilles de basilic, basilic en pot",
+    "category": "Fruits & Légumes",
+    "emoji": "🌿",
+    "popularity_score": 85,
+    "nutrition": {
+      "kcal_100g": 23
+    },
+    "default_expiry_days": 5,
+    "piece_weight": 15,
     "form": "solide",
     "default_unit": "piece",
     "default_quantity": 1

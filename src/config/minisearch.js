@@ -15,6 +15,7 @@ const FRENCH_STOP_WORDS = new Set([
   "de", "du", "des", "le", "la", "les", "un", "une", "et", "ou",
   "au", "aux", "en", "par", "pour", "sur", "avec", "dans",
   "son", "sa", "ses", "ce", "cette",
+  "sans", "non", "ni",
 ]);
 
 function normalizeFrenchPlural(term) {

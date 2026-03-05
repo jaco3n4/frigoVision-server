@@ -142,7 +142,7 @@ Pour atteindre la cible de ~${kcalPerMeal} kcal, NE GONFLE PAS artificiellement 
 6. Pour "slot" utilise : lunch ou dinner.
 7. FORMAT INGRÉDIENTS — chaque ingrédient est un OBJET avec 4 champs :
    - "ingredient_id" : pour les ingrédients du FRIGO qui ont un [ID:xxx], RECOPIE cet ID exactement. Pour les ingrédients à ACHETER (pas dans le frigo), mets "".
-   - "name" : nom de l'ingrédient (ex: "Poulet", "Feta").
+   - "name" : nom GÉNÉRIQUE de l'ingrédient UNIQUEMENT, SANS quantité, SANS unité, SANS qualifier alimentaire (halal, casher, bio, vegan, fermier…). Exemple : "Poivron rouge", JAMAIS "pc poivron" ou "2 poivrons" ou "150g poulet". Le régime de l'utilisateur est déjà pris en compte.
    - "quantity" : nombre (ex: 150, 2, 0.5). Jamais 0.
    - "unit" : unité STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.
 8. VIGILANCE ALLERGIES (SÉCURITÉ ABSOLUE) : Si le profil indique des allergies, tu as l'INTERDICTION d'utiliser des produits transformés, de boulangerie ou des sauces classiques qui contiennent traditionnellement cet allergène en ingrédient caché (ex: si allergie aux œufs = pas de pain brioché, pas de béchamel, pas de mayonnaise, pas de pâtes fraîches ; si allergie au lait = pas de beurre, pas de crème). Privilégie des associations 100% brutes et sûres.`;
@@ -854,7 +854,7 @@ Attention : si des accompagnements ont été générés pour atteindre les calor
 === FORMAT INGRÉDIENTS ===
 Chaque ingrédient est un OBJET avec 4 champs :
 - "ingredient_id" : pour les ingrédients du FRIGO qui ont un [ID:xxx], RECOPIE cet ID exactement. Pour les ingrédients à ACHETER, mets "".
-- "name" : nom GÉNÉRIQUE de l'ingrédient, SANS qualifier alimentaire (halal, casher, bio, vegan, fermier, label rouge…). Exemple : "Escalope de poulet", JAMAIS "Escalope de poulet halal". Le régime de l'utilisateur est déjà pris en compte.
+- "name" : nom GÉNÉRIQUE de l'ingrédient UNIQUEMENT, SANS quantité, SANS unité, SANS qualifier alimentaire (halal, casher, bio, vegan, fermier, label rouge…). Exemple : "Poivron rouge", JAMAIS "pc poivron" ou "2 poivrons" ou "150g poulet" ou "Escalope de poulet halal". Le régime de l'utilisateur est déjà pris en compte.
 - "quantity" : nombre (ex: 150, 2, 0.5). Jamais 0.
 - "unit" : unité STRICTEMENT parmi "kg", "g", "l", "cl", "ml" ou "piece". Pas d'autre valeur.`;
     };

@@ -81,7 +81,12 @@ function postProcessIngredients(ingredients, label = "") {
   const exactItems = [];
   const result = ingredients.map((ing) => {
     let ingredientId = (ing.ingredient_id || "").trim();
-    const name = (ing.name || "").trim();
+    // Nettoyage défensif du name : strip préfixes quantité résiduels de Gemini
+    const rawName = (ing.name || "").trim();
+    const name = rawName
+      .replace(/^\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l|cl|pc|pcs|pièces?|pieces?)?\s+/i, "")
+      .replace(/\s*\([^)]*\)/g, "")
+      .trim() || rawName;
     let quantity =
       typeof ing.quantity === "number"
         ? ing.quantity
