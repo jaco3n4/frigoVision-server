@@ -27,6 +27,7 @@ const { analyzeVoiceList } = require("../controllers/voiceController");
 const { analyzeScannedProducts } = require("../controllers/scanController");
 const { shareRecipe, shareRedirect } = require("../controllers/shareController");
 const { analyzeReceiptImage } = require("../controllers/receiptController");
+const { searchIngredients } = require("../controllers/ingredientController");
 
 const router = Router();
 
@@ -79,6 +80,7 @@ router.post("/api/shopping/classify", requireAuth, classifyShoppingItem);
 // INGREDIENTS
 // =====================================================================
 router.post("/api/ingredients/emoji", requireAuth, detectIngredientEmoji);
+router.get("/api/ingredients/search", requireAuth, searchIngredients);
 
 // =====================================================================
 // PRODUCTS (Coach + Cooking Guide)
