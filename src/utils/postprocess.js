@@ -85,6 +85,8 @@ function postProcessIngredients(ingredients, label = "") {
     const rawName = (ing.name || "").trim();
     const name = rawName
       .replace(/^\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l|cl|pc|pcs|pièces?|pieces?)?\s+/i, "")
+      .replace(/^(?:pc|pcs|pièces?|pieces?)\s+/i, "")
+      .replace(/^(?:de\s+|d')/i, "")
       .replace(/\s*\([^)]*\)/g, "")
       .trim() || rawName;
     let quantity =
@@ -142,7 +144,7 @@ function postProcessIngredients(ingredients, label = "") {
 
     return {
       ingredient_id: ingredientId || "",
-      name,
+      name: ingredientId ? matchedName : name,
       quantity,
       unit,
     };
